@@ -7,7 +7,6 @@
  * @module
  */
 
-import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import type * as Schema from "effect/Schema";
 import * as AST from "effect/SchemaAST";
@@ -36,43 +35,17 @@ export interface TypeDefinitionResult {
  *
  * All schemas share a single type environment, so types referenced by
  * multiple schemas are only generated once (deduplication).
- *
- * @example
- * ```typescript
- * import * as S from "effect/Schema";
- * import { make } from "./schema-to-type.js";
- *
- * class Foo extends S.Class<Foo>("Foo")({
- *   key: S.String,
- * }) {}
- *
- * class Bar extends S.Class<Bar>("Bar")({
- *   foo: Foo,
- *   name: S.String,
- * }) {}
- *
- * class Baz extends S.Class<Baz>("Baz")({
- *   foo: Foo,
- *   count: S.Number,
- * }) {}
- *
- * const { exprs, types } = make(Bar, Baz);
- * // exprs === ["Bar", "Baz"]
- * // types contains Foo, Bar, Baz (Foo only once despite being referenced by both)
- * ```
  */
-export const schemaToType = <Schemas extends Schema.Schema<any, any, any>[]>(
+export const schemaToType = <Schemas extends Schema.Schema<any>[]>(
   ...schemas: Schemas
 ): TypeDefinitionResult => {
   const typesMap: Record<string, string> = {};
   const processing = new Set<string>();
 
-  // Process all schemas with shared type environment
   const exprs = schemas.map((schema) =>
     go(schema.ast, { types: typesMap, processing }, "handle-identifier"),
   );
 
-  // Convert the types map to a single string
   const types = Object.values(typesMap).join("\n\n");
 
   return {
@@ -98,7 +71,6 @@ export const fromAST = (
   const processing = new Set<string>();
   const result = go(ast, { types: typesMap, processing }, "handle-identifier");
 
-  // If caller wants to collect types, push them to the array
   if (options?.types) {
     for (const def of Object.values(typesMap)) {
       options.types.push(def);
@@ -108,77 +80,53 @@ export const fromAST = (
   return result;
 };
 
-function getDescription(annotated: AST.Annotated): string | undefined {
-  const desc = Option.getOrUndefined(AST.getDescriptionAnnotation(annotated));
+function getDescription(ast: AST.AST): string | undefined {
+  const desc = AST.resolveDescription(ast);
   if (desc === undefined) return undefined;
 
-  // Filter out built-in descriptions from primitive keywords
-  // Check if annotated is an AST node (has _tag property) before using type guards
-  if ("_tag" in annotated) {
-    const ast = annotated as AST.AST;
-    if (AST.isStringKeyword(ast) && desc === "a string") return undefined;
-    if (AST.isNumberKeyword(ast) && desc === "a number") return undefined;
-    if (AST.isBooleanKeyword(ast) && desc === "a boolean") return undefined;
-    if (AST.isBigIntKeyword(ast) && desc === "a bigint") return undefined;
-    if (AST.isSymbolKeyword(ast) && desc === "a symbol") return undefined;
-    if (
-      AST.isObjectKeyword(ast) &&
-      desc === "an object in the TypeScript meaning, i.e. the `object` type"
-    )
-      return undefined;
-  }
+  if (AST.isString(ast) && desc === "a string") return undefined;
+  if (AST.isNumber(ast) && desc === "a number") return undefined;
+  if (AST.isBoolean(ast) && desc === "a boolean") return undefined;
+  if (AST.isBigInt(ast) && desc === "a bigint") return undefined;
+  if (AST.isSymbol(ast) && desc === "a symbol") return undefined;
+  if (
+    AST.isObjectKeyword(ast) &&
+    desc === "an object in the TypeScript meaning, i.e. the `object` type"
+  )
+    return undefined;
 
   return desc;
 }
 
 /**
  * Gets the identifier for a named type.
+ *
  * Returns an identifier for:
- * - S.Class types (Transformations with Declaration that has surrogate)
- * - Any schema with an explicit identifier annotation (e.g., named unions)
+ * - S.Class types (Declarations with typeParameters and encoding)
+ * - Any schema with an explicit identifier annotation
  * - Suspended types with identifiers
  *
- * Does NOT return identifier for simple transformations like NumberFromString
- * (which have identifier but no user intent to create a named type).
+ * Does NOT return identifier for simple transformations like NumberFromString.
  */
 function getIdentifier(ast: AST.AST): string | undefined {
-  // For Transformations (like S.Class), check if the "to" side is a Declaration with a surrogate
-  // This distinguishes S.Class (which has Declaration with surrogate) from simple transforms
-  if (AST.isTransformation(ast)) {
-    const toAst = ast.to;
-    if (AST.isDeclaration(toAst)) {
-      const surrogate = AST.getSurrogateAnnotation(toAst);
-      if (Option.isSome(surrogate)) {
-        return Option.getOrUndefined(AST.getIdentifierAnnotation(toAst));
-      }
-    }
-    // For simple transformations without surrogate, don't treat as named type
-    return undefined;
-  }
-
-  // For Declarations with surrogate (direct S.Class reference)
   if (AST.isDeclaration(ast)) {
-    const surrogate = AST.getSurrogateAnnotation(ast);
-    if (Option.isSome(surrogate)) {
-      return Option.getOrUndefined(AST.getIdentifierAnnotation(ast));
-    }
-    return undefined;
+    return AST.resolveIdentifier(ast);
   }
 
-  // For Suspend (recursive types), check the resolved AST
   if (AST.isSuspend(ast)) {
-    const id = Option.getOrUndefined(AST.getIdentifierAnnotation(ast));
-    if (id !== undefined) {
-      return id;
-    }
-    // Check the resolved type
-    const resolved = ast.f();
+    const id = AST.resolveIdentifier(ast);
+    if (id !== undefined) return id;
+    const resolved = ast.thunk();
     return getIdentifier(resolved);
   }
 
-  // For other AST types (Union, TypeLiteral, etc.), check for explicit identifier annotation
-  // This supports named unions like: S.Union(...).annotations({ identifier: "MyUnion" })
-  return Option.getOrUndefined(AST.getIdentifierAnnotation(ast));
+  // For schemas with encoding chains (transforms like NumberFromString),
+  // don't treat as named types - just use the decoded type
+  if (ast.encoding) {
+    return undefined;
+  }
+
+  return AST.resolveIdentifier(ast);
 }
 
 function formatComment(
@@ -198,45 +146,28 @@ function escapePropertyName(name: PropertyKey): string {
     return `[${String(name)}]`;
   }
   const str = String(name);
-  // Check if the property name is a valid identifier
   if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(str)) {
     return str;
   }
-  // Otherwise, quote it
   return JSON.stringify(str);
 }
 
 /**
  * Gets the type body for a named type (S.Class, etc).
- * This navigates through transformations and surrogates to find the actual structure.
+ * Navigates through Declarations to find the actual structure.
  */
 function getTypeBody(ast: AST.AST, options: GoOptions): string {
-  // For Suspend nodes, resolve them first
   if (AST.isSuspend(ast)) {
-    return getTypeBody(ast.f(), options);
+    return getTypeBody(ast.thunk(), options);
   }
 
-  // For Transformations (like S.Class), get the body from the "to" side's surrogate
-  if (AST.isTransformation(ast)) {
-    const toAst = ast.to;
-    // Check for surrogate on the "to" side (Declaration typically has a surrogate)
-    const surrogate = AST.getSurrogateAnnotation(toAst);
-    if (Option.isSome(surrogate)) {
-      return go(surrogate.value, options, "ignore-identifier");
-    }
-    // Otherwise, use the "to" side directly
-    return go(toAst, options, "ignore-identifier");
-  }
-
-  // For Declarations, check for surrogate
   if (AST.isDeclaration(ast)) {
-    const surrogate = AST.getSurrogateAnnotation(ast);
-    if (Option.isSome(surrogate)) {
-      return go(surrogate.value, options, "ignore-identifier");
+    if (ast.typeParameters.length > 0) {
+      return go(ast.typeParameters[0], options, "ignore-identifier");
     }
+    return "unknown";
   }
 
-  // Default: get the type ignoring the identifier
   return go(ast, options, "ignore-identifier");
 }
 
@@ -249,20 +180,15 @@ function go(
   if (identifierHandling === "handle-identifier") {
     const id = getIdentifier(ast);
     if (id !== undefined) {
-      // Check if we're already processing this type (handles recursion)
       if (options.processing.has(id)) {
         return id;
       }
 
-      // Check if we've already fully processed this type
       if (!(id in options.types)) {
-        // Mark as processing to handle recursive types
         options.processing.add(id);
 
-        // Get the type body (ignoring the identifier to get the actual structure)
         const typeBody = getTypeBody(ast, options);
 
-        // Generate interface or type definition
         if (typeBody.startsWith("{")) {
           options.types[id] = `interface ${id} ${typeBody}`;
         } else {
@@ -275,20 +201,21 @@ function go(
     }
   }
 
-  // Check for surrogate annotation (used by S.Class and similar)
-  const surrogate = AST.getSurrogateAnnotation(ast);
-  if (Option.isSome(surrogate)) {
-    return go(surrogate.value, options, identifierHandling);
+  // For Declarations without identifier (or when ignoring), get the body from typeParameters
+  if (AST.isDeclaration(ast) && identifierHandling === "ignore-identifier") {
+    if (ast.typeParameters.length > 0) {
+      return go(ast.typeParameters[0], options, identifierHandling);
+    }
+    return "unknown";
+  }
+
+  // Handle encoding chains (transformations): use the decoded type
+  if (ast.encoding) {
+    return go(AST.toType(ast), options, identifierHandling);
   }
 
   switch (ast._tag) {
     case "Declaration": {
-      // For declarations, try to use surrogate or fall back to unknown
-      const surrogateAst = AST.getSurrogateAnnotation(ast);
-      if (Option.isSome(surrogateAst)) {
-        return go(surrogateAst.value, options, identifierHandling);
-      }
-      // Check for type parameters
       if (ast.typeParameters.length > 0) {
         const id = getIdentifier(ast);
         if (id) {
@@ -303,9 +230,6 @@ function go(
 
     case "Literal": {
       const literal = ast.literal;
-      if (literal === null) {
-        return "null";
-      }
       if (Predicate.isString(literal)) {
         return JSON.stringify(literal);
       }
@@ -321,43 +245,46 @@ function go(
       return "unknown";
     }
 
+    case "Null":
+      return "null";
+
     case "UniqueSymbol":
       return `typeof ${String(ast.symbol)}`;
 
-    case "UndefinedKeyword":
+    case "Undefined":
       return "undefined";
 
-    case "VoidKeyword":
+    case "Void":
       return "void";
 
-    case "NeverKeyword":
+    case "Never":
       return "never";
 
-    case "UnknownKeyword":
+    case "Unknown":
       return "unknown";
 
-    case "AnyKeyword":
+    case "Any":
       return "any";
 
-    case "StringKeyword":
+    case "String":
       return "string";
 
-    case "NumberKeyword":
+    case "Number":
       return "number";
 
-    case "BooleanKeyword":
+    case "Boolean":
       return "boolean";
 
-    case "BigIntKeyword":
+    case "BigInt":
       return "bigint";
 
-    case "SymbolKeyword":
+    case "Symbol":
       return "symbol";
 
     case "ObjectKeyword":
       return "object";
 
-    case "Enums": {
+    case "Enum": {
       const values = ast.enums.map(([_, value]) =>
         typeof value === "string" ? JSON.stringify(value) : String(value),
       );
@@ -368,21 +295,16 @@ function go(
       return formatTemplateLiteral(ast, options);
     }
 
-    case "Refinement":
-      // Refinements don't change the type, just add runtime constraints
-      return go(ast.from, options, identifierHandling);
-
-    case "TupleType": {
-      return formatTupleType(ast, options);
+    case "Arrays": {
+      return formatArrays(ast, options);
     }
 
-    case "TypeLiteral": {
-      return formatTypeLiteral(ast, options);
+    case "Objects": {
+      return formatObjects(ast, options);
     }
 
     case "Union": {
       const members = ast.types.map((t) => go(t, options, "handle-identifier"));
-      // Remove duplicates and format
       const unique = [...new Set(members)];
       if (unique.length === 1) {
         return unique[0];
@@ -393,13 +315,11 @@ function go(
     case "Suspend": {
       const id = getIdentifier(ast);
       if (id !== undefined) {
-        // For suspended types, check if already processing
         if (options.processing.has(id)) {
           return id;
         }
         if (!(id in options.types)) {
           options.processing.add(id);
-          // Use getTypeBody to properly extract the body from the resolved AST
           const typeBody = getTypeBody(ast, options);
           if (typeBody.startsWith("{")) {
             options.types[id] = `interface ${id} ${typeBody}`;
@@ -410,14 +330,9 @@ function go(
         }
         return id;
       }
-      // If no identifier, try to resolve it
-      const resolved = ast.f();
+      const resolved = ast.thunk();
       return go(resolved, options, identifierHandling);
     }
-
-    case "Transformation":
-      // For transformations, use the "to" type (the decoded type)
-      return go(ast.to, options, identifierHandling);
   }
 }
 
@@ -425,10 +340,14 @@ function formatTemplateLiteral(
   ast: AST.TemplateLiteral,
   options: GoOptions,
 ): string {
-  let result = "`" + ast.head;
-  for (const span of ast.spans) {
-    const spanType = formatTemplateLiteralSpan(span.type, options);
-    result += "${" + spanType + "}" + span.literal;
+  let result = "`";
+  for (const part of ast.parts) {
+    if (AST.isLiteral(part) && typeof part.literal === "string") {
+      result += part.literal;
+    } else {
+      const spanType = formatTemplateLiteralSpan(part, options);
+      result += "${" + spanType + "}";
+    }
   }
   result += "`";
   return result;
@@ -436,9 +355,9 @@ function formatTemplateLiteral(
 
 function formatTemplateLiteralSpan(type: AST.AST, options: GoOptions): string {
   switch (type._tag) {
-    case "StringKeyword":
+    case "String":
       return "string";
-    case "NumberKeyword":
+    case "Number":
       return "number";
     case "Literal":
       return typeof type.literal === "string"
@@ -455,27 +374,39 @@ function formatTemplateLiteralSpan(type: AST.AST, options: GoOptions): string {
   }
 }
 
-function formatTupleType(ast: AST.TupleType, options: GoOptions): string {
+function formatArrays(ast: AST.Arrays, options: GoOptions): string {
   const elements: string[] = [];
 
-  // Add required and optional elements
   for (const element of ast.elements) {
-    const typeStr = go(element.type, options, "handle-identifier");
+    const isOpt = AST.isOptional(element);
+    let typeStr: string;
+    if (isOpt && AST.isUnion(element)) {
+      const nonUndefined = element.types.filter((t) => !AST.isUndefined(t));
+      if (nonUndefined.length === 1) {
+        typeStr = go(nonUndefined[0], options, "handle-identifier");
+      } else if (nonUndefined.length > 1) {
+        typeStr = nonUndefined
+          .map((t) => go(t, options, "handle-identifier"))
+          .join(" | ");
+      } else {
+        typeStr = go(element, options, "handle-identifier");
+      }
+    } else {
+      typeStr = go(element, options, "handle-identifier");
+    }
     const description = getDescription(element);
     const comment = description ? `/* ${description} */ ` : "";
-    if (element.isOptional) {
+    if (isOpt) {
       elements.push(`${comment}${typeStr}?`);
     } else {
       elements.push(`${comment}${typeStr}`);
     }
   }
 
-  // Add rest elements
   if (ast.rest.length > 0) {
-    const restType = go(ast.rest[0].type, options, "handle-identifier");
+    const restType = go(ast.rest[0], options, "handle-identifier");
     if (ast.elements.length === 0 && ast.rest.length === 1) {
-      // Pure array type
-      if (ast.isReadonly) {
+      if (!ast.isMutable) {
         return `readonly ${restType}[]`;
       }
       return `${restType}[]`;
@@ -483,39 +414,40 @@ function formatTupleType(ast: AST.TupleType, options: GoOptions): string {
     elements.push(`...${restType}[]`);
   }
 
-  const prefix = ast.isReadonly ? "readonly " : "";
+  const prefix = !ast.isMutable ? "readonly " : "";
   return `${prefix}[${elements.join(", ")}]`;
 }
 
-function formatTypeLiteral(ast: AST.TypeLiteral, options: GoOptions): string {
-  if (ast.propertySignatures.length === 0 && ast.indexSignatures.length === 0) {
+function formatObjects(ast: AST.Objects, options: GoOptions): string {
+  if (
+    ast.propertySignatures.length === 0 &&
+    ast.indexSignatures.length === 0
+  ) {
     return "{}";
   }
 
   const lines: string[] = [];
 
-  // Add property signatures
   for (const ps of ast.propertySignatures) {
     if (typeof ps.name !== "string" && typeof ps.name !== "number") {
-      continue; // Skip symbol keys for simplicity
+      continue;
     }
 
     const propName = escapePropertyName(ps.name);
     const typeStr = go(ps.type, options, "handle-identifier");
-    // Get description from either the property signature or its type
-    const description = getDescription(ps) ?? getDescription(ps.type);
+    const description = getDescription(ps.type);
     const comment = formatComment(description, "  ");
-    const readonly = ps.isReadonly ? "readonly " : "";
-    const optional = ps.isOptional ? "?" : "";
+    const isMutable = ps.type.context?.isMutable ?? false;
+    const readonly = isMutable ? "" : "readonly ";
+    const optional = AST.isOptional(ps.type) ? "?" : "";
 
     lines.push(`${comment}  ${readonly}${propName}${optional}: ${typeStr};`);
   }
 
-  // Add index signatures
   for (const is of ast.indexSignatures) {
     const paramType = go(is.parameter, options, "handle-identifier");
     const valueType = go(is.type, options, "handle-identifier");
-    const readonly = is.isReadonly ? "readonly " : "";
+    const readonly = "readonly ";
     lines.push(`  ${readonly}[key: ${paramType}]: ${valueType};`);
   }
 

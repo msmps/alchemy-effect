@@ -28,7 +28,7 @@ export const bootstrap = Effect.fn(function* () {
   const exists = yield* s3.headBucket({ Bucket: bucketName }).pipe(
     Effect.map(() => true),
     Effect.catchTag("NotFound", () => Effect.succeed(false)),
-    Effect.catchAll(() => Effect.succeed(false)),
+    Effect.catch(() => Effect.succeed(false)),
   );
 
   if (exists) {
@@ -97,7 +97,7 @@ export const bootstrap = Effect.fn(function* () {
   // Wait for bucket to exist (eventual consistency)
   yield* Effect.retry(
     s3.headBucket({ Bucket: bucketName }),
-    Schedule.exponential(100).pipe(Schedule.intersect(Schedule.recurs(10))),
+    Schedule.exponential(100).pipe(Schedule.both(Schedule.recurs(10))),
   );
 
   // Tag the bucket

@@ -49,14 +49,14 @@ const stage = Options.text("stage").pipe(
         return stage;
       }
       return yield* STAGE.pipe(
-        Effect.catchAll((err) =>
+        Effect.catch((err) =>
           Effect.fail(ValidationError.invalidValue(HelpDoc.p(err.message))),
         ),
         Effect.flatMap((s) =>
           s === undefined
             ? USER.pipe(
                 Effect.map((user) => `dev_${user}`),
-                Effect.catchAll(() => Effect.succeed("unknown")),
+                Effect.catch(() => Effect.succeed("unknown")),
               )
             : Effect.succeed(s),
         ),

@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
 import type { ScopedPlanStatusSession } from "../../Cli.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -16,7 +16,7 @@ export const InternetGateway = Resource<{
   <const ID extends string, const Props extends InternetGatewayProps>(
     id: ID,
     props: Props,
-  ): InternetGateway<ID, Props>;
+  ): Effect.Effect<InternetGateway<ID, Props>>;
 }>("AWS.EC2.InternetGateway");
 
 export interface InternetGateway<
@@ -26,8 +26,7 @@ export interface InternetGateway<
   "AWS.EC2.InternetGateway",
   ID,
   Props,
-  InternetGatewayAttrs<Input.Resolve<Props>>,
-  InternetGateway
+  InternetGatewayAttrs<Input.Resolve<Props>>
 > {}
 
 export type InternetGatewayId<ID extends string = string> = `igw-${ID}`;
@@ -257,7 +256,7 @@ export const InternetGatewayProvider = () =>
           const igw = yield* describeInternetGateway(
             internetGatewayId,
             session,
-          ).pipe(Effect.catchAll(() => Effect.succeed({ Attachments: [] })));
+          ).pipe(Effect.catch(() => Effect.succeed({ Attachments: [] })));
           const attachments = igw.Attachments ?? [];
 
           // 1. Detach from all VPCs first
@@ -281,7 +280,7 @@ export const InternetGatewayProvider = () =>
                       return e._tag === "DependencyViolation";
                     },
                     schedule: Schedule.fixed(5000).pipe(
-                      Schedule.intersect(Schedule.recurs(60)), // Up to 5 minutes
+                      Schedule.both(Schedule.recurs(60)), // Up to 5 minutes
                       Schedule.tapOutput(([, attempt]) =>
                         session.note(
                           `Waiting for VPC dependencies to clear before detaching... (attempt ${attempt + 1})`,
@@ -316,7 +315,7 @@ export const InternetGatewayProvider = () =>
                   );
                 },
                 schedule: Schedule.fixed(5000).pipe(
-                  Schedule.intersect(Schedule.recurs(60)), // Up to 5 minutes
+                  Schedule.both(Schedule.recurs(60)), // Up to 5 minutes
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `Waiting for dependencies to clear... (attempt ${attempt + 1})`,
@@ -388,7 +387,7 @@ const waitForInternetGatewayDeleted = (
       }),
       {
         schedule: Schedule.fixed(2000).pipe(
-          Schedule.intersect(Schedule.recurs(15)),
+          Schedule.both(Schedule.recurs(15)),
           Schedule.tapOutput(([, attempt]) =>
             session.note(
               `Waiting for internet gateway deletion... (${(attempt + 1) * 2}s)`,

@@ -1,6 +1,6 @@
+import type { Yieldable } from "effect/Effect";
 import * as Effect from "effect/Effect";
 import * as S from "effect/Schema";
-import type { YieldWrap } from "effect/Utils";
 import { Function } from "../../Schema.ts";
 import { defineAspect, type Aspect } from "../Aspect.ts";
 import { Parameter, type Parameters } from "./parameter.ts";
@@ -26,10 +26,8 @@ export type Tool<
 
 export declare namespace Tool {
   export type Success<T extends Tool> = Result.Of<T["references"]>;
-  export type Error<T extends Tool> = Effect.Effect.Error<
-    ReturnType<T["handle"]>
-  >;
-  export type Context<T extends Tool> = Effect.Effect.Context<
+  export type Error<T extends Tool> = Effect.Error<ReturnType<T["handle"]>>;
+  export type Context<T extends Tool> = Effect.Services<
     ReturnType<T["handle"]>
   >;
 }
@@ -44,7 +42,7 @@ export const Tool = defineAspect<
   ) => (<Handler extends ToolHandler<References>>(
     handler: Handler,
   ) => Aspect<Tool, "tool", ID, References, Props, Handler>) &
-    (<Eff extends YieldWrap<Effect.Effect<any, any, any>>>(
+    (<Eff extends Yieldable<any, any, any, any>>(
       handler: (
         input: Parameters.Of<References>,
       ) => Generator<Eff, NoInfer<Result.Of<References>>, never>,
@@ -60,16 +58,12 @@ export const Tool = defineAspect<
         NoInfer<Result.Of<References>>,
         [Eff] extends [never]
           ? never
-          : [Eff] extends [
-                YieldWrap<Effect.Effect<infer _A, infer E, infer _R>>,
-              ]
+          : [Eff] extends [Yieldable<any, infer _A, infer E, infer _R>]
             ? E
             : never,
         [Eff] extends [never]
           ? never
-          : [Eff] extends [
-                YieldWrap<Effect.Effect<infer _A, infer _E, infer R>>,
-              ]
+          : [Eff] extends [Yieldable<any, infer _A, infer _E, infer R>]
             ? R
             : never
       >

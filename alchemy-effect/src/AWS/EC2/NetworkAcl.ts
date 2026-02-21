@@ -3,7 +3,7 @@ import { Region } from "distilled-aws/Region";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList, diffTags } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -15,7 +15,7 @@ export const NetworkAcl = Resource<{
   <const ID extends string, const Props extends NetworkAclProps>(
     id: ID,
     props: Props,
-  ): NetworkAcl<ID, Props>;
+  ): Effect.Effect<NetworkAcl<ID, Props>>;
 }>("AWS.EC2.NetworkAcl");
 
 export interface NetworkAcl<
@@ -25,8 +25,7 @@ export interface NetworkAcl<
   "AWS.EC2.NetworkAcl",
   ID,
   Props,
-  NetworkAclAttrs<Input.Resolve<Props>>,
-  NetworkAcl
+  NetworkAclAttrs<Input.Resolve<Props>>
 > {}
 
 export type NetworkAclId<ID extends string = string> = `acl-${ID}`;
@@ -271,7 +270,7 @@ export const NetworkAclProvider = () =>
                   return e._tag === "DependencyViolation";
                 },
                 schedule: Schedule.exponential(1000, 1.5).pipe(
-                  Schedule.intersect(Schedule.recurs(15)),
+                  Schedule.both(Schedule.recurs(15)),
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `Waiting for dependencies to clear... (attempt ${attempt + 1})`,

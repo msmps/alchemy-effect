@@ -20,7 +20,7 @@ const retryTransient = <A, E, R>(eff: Effect.Effect<A, E, R>) =>
         );
       },
       schedule: Schedule.exponential(500).pipe(
-        Schedule.intersect(Schedule.recurs(10)),
+        Schedule.both(Schedule.recurs(10)),
       ),
     }),
   );
@@ -45,7 +45,7 @@ test(
 
     // Cleanup any existing table first
     yield* DynamoDB.deleteTable({ TableName: tableName }).pipe(
-      Effect.catchAll(() => Effect.void),
+      Effect.catch(() => Effect.void),
     );
     yield* Effect.sleep(2000);
 
@@ -111,7 +111,7 @@ test(
 
     yield* DynamoDB.deleteTable({ TableName: tableName }).pipe(
       retryTransient,
-      Effect.catchAll(() => Effect.void),
+      Effect.catch(() => Effect.void),
     );
 
     yield* assertTableIsDeleted(tableName);

@@ -1,8 +1,7 @@
-import { $ } from "@/index";
 import * as Kinesis from "@/aws/kinesis";
 import * as Lambda from "@/aws/lambda";
 import * as SQS from "@/aws/sqs";
-import { type } from "@/index";
+import { $ } from "@/index";
 import * as Effect from "effect/Effect";
 import * as S from "effect/Schema";
 import path from "pathe";
@@ -39,7 +38,7 @@ const streamForwarder = Lambda.consumeStream("StreamForwarder", {
         AnotherStream,
         { id: record.kinesis.data.eventId },
         { partitionKey: record.kinesis.data.eventId },
-      ).pipe(Effect.catchAll(() => Effect.void));
+      ).pipe(Effect.catch(() => Effect.void));
     }
   }),
 });
@@ -80,7 +79,7 @@ const streamToQueue = Lambda.consumeStream("StreamToQueue", {
       yield* SQS.sendMessage(
         OutputQueue,
         JSON.stringify(record.kinesis.data),
-      ).pipe(Effect.catchAll(() => Effect.void));
+      ).pipe(Effect.catch(() => Effect.void));
     }
   }),
 });
@@ -111,12 +110,12 @@ const multiBindingConsumer = Lambda.consumeStream("MultiBindingConsumer", {
       yield* SQS.sendMessage(
         OutputQueue,
         JSON.stringify(record.kinesis.data),
-      ).pipe(Effect.catchAll(() => Effect.void));
+      ).pipe(Effect.catch(() => Effect.void));
       yield* Kinesis.putRecord(
         AnotherStream,
         { id: record.kinesis.data.eventId },
         { partitionKey: record.kinesis.data.eventId },
-      ).pipe(Effect.catchAll(() => Effect.void));
+      ).pipe(Effect.catch(() => Effect.void));
     }
   }),
 });
@@ -200,7 +199,7 @@ const batchProducer = Lambda.serve("BatchProducer", {
         data: { eventId: "2", timestamp: Date.now(), data: null },
         partitionKey: "pk2",
       },
-    ]).pipe(Effect.catchAll(() => Effect.void));
+    ]).pipe(Effect.catch(() => Effect.void));
     return { statusCode: 200, body: "OK" };
   }),
 });

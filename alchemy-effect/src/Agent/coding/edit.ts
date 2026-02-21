@@ -67,7 +67,7 @@ Given a ${filePath}, ${oldString}, and ${newString}:
     // Edit existing file - validate it exists
     const stat = yield* fs
       .stat(filePath)
-      .pipe(Effect.catchAll(() => Effect.succeed(null)));
+      .pipe(Effect.catch(() => Effect.succeed(null)));
 
     if (!stat) {
       return { result: `File not found: ${filePath}` };
@@ -79,9 +79,7 @@ Given a ${filePath}, ${oldString}, and ${newString}:
     // Read existing content
     const oldContent = yield* fs
       .readFileString(filePath)
-      .pipe(
-        Effect.catchAll((e) => Effect.succeed(`Failed to read file: ${e}`)),
-      );
+      .pipe(Effect.catch((e) => Effect.succeed(`Failed to read file: ${e}`)));
     if (oldContent.startsWith("Failed to read")) {
       return { result: oldContent };
     }
@@ -126,7 +124,7 @@ Given a ${filePath}, ${oldString}, and ${newString}:
   const writeResult = yield* fs
     .writeFileString(filePath, newContent)
     .pipe(
-      Effect.catchAll((e) =>
+      Effect.catch((e) =>
         Effect.succeed(
           `Failed to ${isCreate ? "create" : "write"} file: ${e.message}`,
         ),

@@ -1,8 +1,5 @@
 import { describe, expect, test } from "vitest";
 
-import * as Effect from "effect/Effect";
-import * as S from "effect/Schema";
-import type { AttributeValue } from "distilled-aws/dynamodb";
 import {
   fromAttributeValue,
   isMapSchemaType,
@@ -10,7 +7,10 @@ import {
   isStringSetSchema,
   toAttributeType,
   toAttributeValue,
-} from "@/aws/dynamodb/attribute-value";
+} from "@/AWS/DynamoDB/AttributeValue";
+import type { AttributeValue } from "distilled-aws/dynamodb";
+import * as Effect from "effect/Effect";
+import * as S from "effect/Schema";
 
 describe("toAttributeValue", () => {
   test("undefined -> NULL false", async () => {

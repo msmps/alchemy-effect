@@ -1,6 +1,6 @@
-import type { HttpServerResponse } from "@effect/platform/HttpServerResponse";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import type { HttpServerResponse } from "effect/unstable/http/HttpServerResponse";
 import { Middleware, type MiddlewareClass } from "./Server/Middleware.ts";
 import { Protocol } from "./Server/Protocol.ts";
 import { applyTrait, defineTrait, type Trait, type TraitDef } from "./Trait.ts";

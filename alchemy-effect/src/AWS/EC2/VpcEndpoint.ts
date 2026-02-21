@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
 import type { ScopedPlanStatusSession } from "../../Cli.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList, diffTags } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -21,7 +21,7 @@ export const VpcEndpoint = Resource<{
   <const ID extends string, const Props extends VpcEndpointProps>(
     id: ID,
     props: Props,
-  ): VpcEndpoint<ID, Props>;
+  ): Effect.Effect<VpcEndpoint<ID, Props>>;
 }>("AWS.EC2.VpcEndpoint");
 
 export interface VpcEndpoint<
@@ -31,8 +31,7 @@ export interface VpcEndpoint<
   "AWS.EC2.VpcEndpoint",
   ID,
   Props,
-  VpcEndpointAttrs<Input.Resolve<Props>>,
-  VpcEndpoint
+  VpcEndpointAttrs<Input.Resolve<Props>>
 > {}
 
 export type VpcEndpointId<ID extends string = string> = `vpce-${ID}`;
@@ -620,7 +619,7 @@ const waitForVpcEndpointAvailable = (
     Effect.retry({
       while: (e) => e._tag === "VpcEndpointPending",
       schedule: Schedule.fixed(3000).pipe(
-        Schedule.intersect(Schedule.recurs(60)), // Max 3 minutes
+        Schedule.both(Schedule.recurs(60)), // Max 3 minutes
         Schedule.tapOutput(([, attempt]) =>
           session.note(
             `Waiting for VPC Endpoint to be available... (${(attempt + 1) * 3}s)`,
@@ -658,7 +657,7 @@ const waitForVpcEndpointDeleted = (
     Effect.retry({
       while: (e) => e._tag === "VpcEndpointDeleting",
       schedule: Schedule.fixed(3000).pipe(
-        Schedule.intersect(Schedule.recurs(60)), // Max 3 minutes
+        Schedule.both(Schedule.recurs(60)), // Max 3 minutes
         Schedule.tapOutput(([, attempt]) =>
           session.note(
             `Waiting for VPC Endpoint deletion... (${(attempt + 1) * 3}s)`,

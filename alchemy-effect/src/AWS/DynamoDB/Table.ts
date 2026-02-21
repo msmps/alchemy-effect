@@ -1,6 +1,5 @@
 import type * as lambda from "aws-lambda";
 
-import type { HttpClient } from "@effect/platform/HttpClient";
 import type { Credentials } from "distilled-aws/Credentials";
 import type * as DynamoDB from "distilled-aws/dynamodb";
 import type { TimeToLiveSpecification } from "distilled-aws/dynamodb";
@@ -10,9 +9,9 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as S from "effect/Schema";
+import type { HttpClient } from "effect/unstable/http/HttpClient";
 
 import { App } from "../../App.ts";
-import type { Capability } from "../../Capability.ts";
 import type { Input } from "../../Input.ts";
 import { createPhysicalName } from "../../PhysicalName.ts";
 import type { Provider } from "../../Provider.ts";
@@ -33,11 +32,6 @@ export type TableRecord<Data> = Omit<lambda.DynamoDBRecord, "dynamodb"> & {
 export type TableEvent<Data> = Omit<lambda.DynamoDBStreamEvent, "Records"> & {
   Records: TableRecord<Data>[];
 };
-
-export interface Consume<T = Table> extends Capability<
-  "AWS.DynamoDB.Consume",
-  T
-> {}
 
 export interface TableProps<
   Items extends any = any,
@@ -88,6 +82,16 @@ export type ToAttribute<S> = S extends string
       ? Uint8Array
       : S;
 
+export interface Table<
+  ID extends string = string,
+  Props extends TableProps<any, any, any, any> = TableProps<any, any, any, any>,
+> extends Resource<
+  "AWS.DynamoDB.Table",
+  ID,
+  Props,
+  TableAttrs<Input.Resolve<Props>>
+> {}
+
 export const Table = Resource<{
   <
     const ID extends string,
@@ -100,21 +104,12 @@ export const Table = Resource<{
   >(
     id: ID,
     props: TableProps<Items, Attributes, PartitionKey, SortKey>,
-  ): Table<ID, TableProps<Items, Attributes, PartitionKey, SortKey>>;
+  ): Effect.Effect<
+    Table<ID, TableProps<Items, Attributes, PartitionKey, SortKey>>
+  >;
 }>("AWS.DynamoDB.Table");
 
 export interface AnyTable extends Table<string, any> {}
-
-export interface Table<
-  ID extends string = string,
-  Props extends TableProps<any, any, any, any> = TableProps<any, any, any, any>,
-> extends Resource<
-  "AWS.DynamoDB.Table",
-  ID,
-  Props,
-  TableAttrs<Input.Resolve<Props>>,
-  Table
-> {}
 
 export declare namespace Table {
   export type PartitionKey<T extends Table> = T["props"]["partitionKey"];
@@ -375,7 +370,7 @@ export const TableProvider = (): Layer.Layer<
                 while: (e) =>
                   e._tag === "ResourceInUseException" ||
                   e._tag === "InternalServerError" ||
-                  e._tag === "TimeoutException",
+                  e._tag === "TimeoutError",
                 schedule: Schedule.exponential(100),
               }),
             );

@@ -59,7 +59,7 @@ Given a ${pattern} and optional ${path}:
   const foundFiles = yield* Ripgrep.findFiles({
     cwd: searchPath,
     glob: [pattern],
-  }).pipe(Effect.catchAll(() => Effect.succeed([] as string[])));
+  }).pipe(Effect.catch(() => Effect.succeed([] as string[])));
 
   for (const filePath of foundFiles) {
     if (fileList.length >= limit) {
@@ -68,7 +68,7 @@ Given a ${pattern} and optional ${path}:
     }
     const stats = yield* fs
       .stat(filePath)
-      .pipe(Effect.catchAll(() => Effect.succeed(null)));
+      .pipe(Effect.catch(() => Effect.succeed(null)));
     if (!stats) continue;
     fileList.push({
       path: filePath,

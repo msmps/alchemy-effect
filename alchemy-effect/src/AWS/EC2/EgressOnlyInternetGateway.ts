@@ -3,7 +3,7 @@ import { Region } from "distilled-aws/Region";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList, diffTags } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -15,7 +15,7 @@ export const EgressOnlyInternetGateway = Resource<{
   <const ID extends string, const Props extends EgressOnlyInternetGatewayProps>(
     id: ID,
     props: Props,
-  ): EgressOnlyInternetGateway<ID, Props>;
+  ): Effect.Effect<EgressOnlyInternetGateway<ID, Props>>;
 }>("AWS.EC2.EgressOnlyInternetGateway");
 
 export interface EgressOnlyInternetGateway<
@@ -25,8 +25,7 @@ export interface EgressOnlyInternetGateway<
   "AWS.EC2.EgressOnlyInternetGateway",
   ID,
   Props,
-  EgressOnlyInternetGatewayAttrs<Input.Resolve<Props>>,
-  EgressOnlyInternetGateway
+  EgressOnlyInternetGatewayAttrs<Input.Resolve<Props>>
 > {}
 
 export type EgressOnlyInternetGatewayId<ID extends string = string> =
@@ -248,7 +247,7 @@ export const EgressOnlyInternetGatewayProvider = () =>
                 while: (e: { _tag: string }) =>
                   e._tag === "DependencyViolation",
                 schedule: Schedule.fixed(5000).pipe(
-                  Schedule.intersect(Schedule.recurs(30)), // Up to ~2.5 minutes
+                  Schedule.both(Schedule.recurs(30)), // Up to ~2.5 minutes
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `Waiting for dependencies to clear... (attempt ${attempt + 1})`,

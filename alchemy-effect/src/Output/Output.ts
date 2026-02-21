@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { YieldWrap } from "effect/Utils";
+import type { Yieldable } from "effect/Utils";
 import { getRefMetadata, isRef, ref as stageRef, type Ref } from "../Ref.ts";
 import type { Resource, ResourceLike } from "../Resource.ts";
 import {
@@ -52,7 +52,7 @@ export interface Output<A = any, Src extends ResourceLike = any, Req = any> {
     fn: (value: A) => Effect.Effect<B, never, Req2>,
   ): Output.Of<B, Src, Req | Req2>;
   [Symbol.iterator](): Iterator<
-    YieldWrap<Effect.Effect<void, never, this>>,
+    Yieldable<any, void, never, this>,
     Value<A, Src>,
     void
   >;

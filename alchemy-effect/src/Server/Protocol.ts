@@ -16,8 +16,8 @@ export const Protocol =
 export type ProtocolClass<
   Self = any,
   Tag extends string = string,
-> = Context.TagClass<Self, Tag, Protocol>;
+> = ServiceMap.ServiceClass<Self, Tag, Protocol>;
 
 export interface ProtocolShape<
   Tag extends string = string,
-> extends Context.TagClassShape<Tag, Protocol> {}
+> extends ServiceMap.ServiceClassShape<Tag, Protocol> {}

@@ -38,7 +38,7 @@ export const S3JobQueue = JobQueue.layer(
               ),
               Effect.flatMap(decodeJob),
             )
-          : Effect.dieMessage("Invalid job body"),
+          : Effect.die("Invalid job body"),
       ),
       Stream.orDie,
     );

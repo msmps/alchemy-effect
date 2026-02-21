@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import { LSPManager } from "./manager.ts";
 import { DiagnosticSeverity, type Diagnostic } from "./client.ts";
+import { LSPManager } from "./manager.ts";
 
 const MAX_DIAGNOSTICS_PER_FILE = 10;
 
@@ -22,7 +22,7 @@ export const getDiagnosticsIfAvailable = (
         .notifyFileChanged(filePath, content)
         .pipe(Effect.andThen(manager.waitForDiagnostics(filePath)));
     }),
-    Effect.catchAll(() => Effect.succeed([] as Diagnostic[])),
+    Effect.catch(() => Effect.succeed([] as Diagnostic[])),
   );
 
 /**

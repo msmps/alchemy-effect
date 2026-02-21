@@ -115,7 +115,7 @@ const makeLSPManager = (servers: ServerConfig[]) =>
                 `[LSPManager] ${config.id} server started`,
               );
             }).pipe(
-              Effect.catchAll((e) =>
+              Effect.catch((e) =>
                 Effect.logWarning(
                   `[LSPManager] Failed to start ${config.id}: ${e}`,
                 ),
@@ -138,7 +138,7 @@ const makeLSPManager = (servers: ServerConfig[]) =>
           HashMap.values(allClients),
           (client) => client.notifyFileChanged(path, content),
           { concurrency: "unbounded" },
-        ).pipe(Effect.catchAll(() => Effect.void));
+        ).pipe(Effect.catch(() => Effect.void));
       }),
 
       waitForDiagnostics: Effect.fnUntraced(function* (
@@ -156,7 +156,7 @@ const makeLSPManager = (servers: ServerConfig[]) =>
           HashMap.values(allClients),
           (client) => client.waitForDiagnostics(path, timeout),
           { concurrency: "unbounded" },
-        ).pipe(Effect.catchAll(() => Effect.void));
+        ).pipe(Effect.catch(() => Effect.void));
 
         // Aggregate diagnostics from all servers
         const allDiagnostics = yield* Ref.get(diagnosticsMap).pipe(
@@ -191,7 +191,7 @@ const makeLSPManager = (servers: ServerConfig[]) =>
           HashMap.values(allClients),
           (client) => client.shutdown,
           { concurrency: "unbounded" },
-        ).pipe(Effect.catchAll(() => Effect.void));
+        ).pipe(Effect.catch(() => Effect.void));
         yield* Ref.set(clients, HashMap.empty());
         yield* Ref.set(initialized, false);
         yield* Effect.logDebug("[LSPManager] All LSP servers shut down");

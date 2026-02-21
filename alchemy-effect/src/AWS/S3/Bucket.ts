@@ -3,8 +3,8 @@ import type { BucketLocationConstraint } from "distilled-aws/s3";
 import * as s3 from "distilled-aws/s3";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { createPhysicalName } from "../../internal/createPhysicalName.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
+import { createPhysicalName } from "../../PhysicalName.ts";
 import { Resource } from "../../Resource.ts";
 import { diffTags } from "../../Tags.ts";
 import { type AccountID, Account } from "../Account.ts";
@@ -66,7 +66,7 @@ export const Bucket = Resource<{
   <const ID extends string, const Props extends BucketProps>(
     id: ID,
     props?: Props,
-  ): Bucket<ID, Props>;
+  ): Effect.Effect<Bucket<ID, Props>>;
 }>("AWS.S3.Bucket");
 
 export interface Bucket<
@@ -76,8 +76,7 @@ export interface Bucket<
   "AWS.S3.Bucket",
   ID,
   Props,
-  BucketAttrs<Input.Resolve<Props>>,
-  Bucket
+  BucketAttrs<Input.Resolve<Props>>
 > {}
 
 export const BucketProvider = () =>
@@ -185,7 +184,7 @@ export const BucketProvider = () =>
             const exists = yield* s3.headBucket({ Bucket: bucketName }).pipe(
               Effect.map(() => true),
               Effect.catchTag("NotFound", () => Effect.succeed(false)),
-              Effect.catchAll(() => Effect.succeed(false)),
+              Effect.catch(() => Effect.succeed(false)),
             );
 
             if (!exists) {
@@ -227,9 +226,7 @@ export const BucketProvider = () =>
           // Wait for bucket to exist (eventual consistency)
           yield* Effect.retry(
             s3.headBucket({ Bucket: bucketName }),
-            Schedule.exponential(100).pipe(
-              Schedule.intersect(Schedule.recurs(10)),
-            ),
+            Schedule.exponential(100).pipe(Schedule.both(Schedule.recurs(10))),
           );
 
           // Apply tags if provided
@@ -307,7 +304,7 @@ export const BucketProvider = () =>
               Effect.retry({
                 while: (e) => e.name === "BucketNotEmpty",
                 schedule: Schedule.exponential(100).pipe(
-                  Schedule.intersect(Schedule.recurs(5)),
+                  Schedule.both(Schedule.recurs(5)),
                 ),
               }),
             );

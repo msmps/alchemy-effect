@@ -1,63 +1,46 @@
 import * as Kinesis from "distilled-aws/kinesis";
 import * as Effect from "effect/Effect";
-import { declare, type Capability, type To } from "../../Capability.ts";
-import { toEnvKey } from "../../Env.ts";
-import { Stream } from "./Stream.ts";
+import * as Binding from "../../Binding.ts";
+import * as Output from "../../Output/index.ts";
+import * as Lambda from "../Lambda/index.ts";
+import type { Stream } from "./Stream.ts";
 
-export interface PutRecords<S = Stream> extends Capability<
-  "AWS.Kinesis.PutRecords",
-  S
-> {}
-
-export const PutRecords = Binding("AWS.Kinesis.PutRecords")<
-  <S extends Stream>(stream: S) => PutRecords<To<S>>
->();
-
-export interface PutRecordsEntry<Data> {
-  /**
-   * The data for the record.
-   */
-  data: Data;
-  /**
-   * The partition key used to distribute records across shards.
-   */
-  partitionKey: string;
-  /**
-   * The hash value used to explicitly determine the shard the data record is assigned to.
-   */
-  explicitHashKey?: string;
+export interface PutRecordsRequestEntry<S extends Stream>
+  extends Omit<Kinesis.PutRecordsRequestEntry, "Data"> {
+  Data: S["props"]["schema"]["Type"];
 }
 
-export const putRecords = Effect.fnUntraced(function* <S extends Stream>(
-  stream: S,
-  records: PutRecordsEntry<S["props"]["schema"]["Type"]>[],
-) {
-  yield* declare<PutRecords<To<S>>>();
-  const streamName = process.env[toEnvKey(stream.id, "STREAM_NAME")]!;
-  return yield* Kinesis.putRecords({
-    StreamName: streamName,
-    Records: records.map((r) => ({
-      Data: new TextEncoder().encode(JSON.stringify(r.data)),
-      PartitionKey: r.partitionKey,
-      ExplicitHashKey: r.explicitHashKey,
-    })),
-  });
-});
+export interface PutRecordsRequest<S extends Stream>
+  extends Omit<Kinesis.PutRecordsRequest, "StreamName" | "Records"> {
+  Records: PutRecordsRequestEntry<S>[];
+}
 
-export const PutRecordsBinding = () =>
-  PutRecords.provider.succeed({
-    attach: ({ source: stream }) => ({
-      env: {
-        [toEnvKey(stream.id, "STREAM_NAME")]: stream.attr.streamName,
-        [toEnvKey(stream.id, "STREAM_ARN")]: stream.attr.streamArn,
-      },
+export const PutRecords = Binding.make(
+  "AWS.Kinesis.PutRecords",
+  <S extends Stream>(stream: S) =>
+    Binding.fn(stream, function* (request: PutRecordsRequest<S>) {
+      return yield* Kinesis.putRecords({
+        ...request,
+        StreamName: yield* stream.streamName(),
+        Records: request.Records.map((r) => ({
+          ...r,
+          Data: new TextEncoder().encode(JSON.stringify(r.Data)),
+        })),
+      });
+    }),
+);
+
+export const PutRecordsLambda = Binding.effect(
+  [Lambda.Function, PutRecords],
+  (func, stream) =>
+    Effect.succeed({
       policyStatements: [
         {
-          Sid: "PutRecord",
+          Sid: "PutRecords",
           Effect: "Allow",
           Action: ["kinesis:PutRecords"],
-          Resource: [stream.attr.streamArn],
+          Resource: [Output.interpolate`${stream.streamArn()}`],
         },
       ],
     }),
-  });
+);

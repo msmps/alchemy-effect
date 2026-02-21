@@ -119,12 +119,12 @@ export const Function: <F extends FunctionType>() => Function<F> = S.suspend(
 ) as any;
 
 export type CreatedAt = Date;
-export const CreatedAt = S.Date.annotations({
+export const CreatedAt = S.Date.annotate({
   description: "The timestamp of when this record was created",
 });
 
 export type UpdatedAt = Date;
-export const UpdatedAt = S.Date.annotations({
+export const UpdatedAt = S.Date.annotate({
   description: "The timestamp of when this record was last updated",
 });
 

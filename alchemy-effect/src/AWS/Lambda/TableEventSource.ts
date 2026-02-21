@@ -344,7 +344,7 @@ export const TableEventSourceProvider = () =>
                     "Please ensure the role can perform the GetRecords",
                   )),
               schedule: Schedule.exponential(100).pipe(
-                Schedule.intersect(Schedule.recurs(30)),
+                Schedule.both(Schedule.recurs(30)),
               ),
             }),
             Effect.orDie,
@@ -368,7 +368,7 @@ export const TableEventSourceProvider = () =>
               .deleteEventSourceMapping({
                 UUID: attr.uuid,
               })
-              .pipe(Effect.catchAll(() => Effect.void));
+              .pipe(Effect.catch(() => Effect.void));
           } else if (attr?.streamArn) {
             const mapping = yield* findEventSourceMapping(
               table,
@@ -380,7 +380,7 @@ export const TableEventSourceProvider = () =>
                 .deleteEventSourceMapping({
                   UUID: mapping.UUID,
                 })
-                .pipe(Effect.catchAll(() => Effect.void));
+                .pipe(Effect.catch(() => Effect.void));
             }
           }
         }),

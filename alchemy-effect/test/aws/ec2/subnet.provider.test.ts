@@ -5,14 +5,14 @@ import * as Output from "@/Output/Output";
 import { test } from "@/Test/Vitest";
 import { expect } from "@effect/vitest";
 import * as EC2 from "distilled-aws/ec2";
-import { LogLevel } from "effect";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import * as Logger from "effect/Logger";
+import { MinimumLogLevel } from "effect/References";
 import * as Schedule from "effect/Schedule";
 
-const logLevel = Logger.withMinimumLogLevel(
-  process.env.DEBUG ? LogLevel.Debug : LogLevel.Info,
+const logLevel = Effect.provideService(
+  MinimumLogLevel,
+  process.env.DEBUG ? "Debug" : "Info",
 );
 
 test(
@@ -92,7 +92,7 @@ const expectSubnetAttribute = Effect.fn(function* (props: {
         : Effect.fail(new SubnetAttributeStale());
     }),
     Effect.retry({
-      while: (e) => e._tag === "SubnetAttributeStale",
+      while: (e) => e instanceof SubnetAttributeStale,
       schedule: Schedule.exponential(100),
     }),
   );
@@ -104,7 +104,7 @@ const assertSubnetDeleted = Effect.fn(function* (subnetId: string) {
   }).pipe(
     Effect.flatMap(() => Effect.fail(new SubnetStillExists())),
     Effect.retry({
-      while: (e) => e._tag === "SubnetStillExists",
+      while: (e) => e instanceof SubnetStillExists,
       schedule: Schedule.exponential(100),
     }),
     Effect.catchTag("InvalidSubnetID.NotFound", () => Effect.void),

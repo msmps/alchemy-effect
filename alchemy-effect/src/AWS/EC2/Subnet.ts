@@ -5,7 +5,7 @@ import * as Schedule from "effect/Schedule";
 
 import type { ScopedPlanStatusSession } from "../../Cli.ts";
 import { somePropsAreDifferent } from "../../Diff.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList, diffTags } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -20,7 +20,7 @@ export const Subnet = Resource<{
   <const ID extends string, const Props extends SubnetProps>(
     id: ID,
     props: Props,
-  ): Subnet<ID, Props>;
+  ): Effect.Effect<Subnet<ID, Props>>;
 }>("AWS.EC2.Subnet");
 
 export interface Subnet<
@@ -30,8 +30,7 @@ export interface Subnet<
   "AWS.EC2.Subnet",
   ID,
   Props,
-  SubnetAttrs<Input.Resolve<Props>>,
-  Subnet
+  SubnetAttrs<Input.Resolve<Props>>
 > {}
 
 export interface SubnetProps {
@@ -490,7 +489,7 @@ export const SubnetProvider = () =>
                   return e._tag === "DependencyViolation";
                 },
                 schedule: Schedule.exponential(1000, 1.5).pipe(
-                  Schedule.intersect(Schedule.recurs(10)), // Try up to 10 times
+                  Schedule.both(Schedule.recurs(10)), // Try up to 10 times
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `Waiting for dependencies to clear... (attempt ${attempt + 1})`,
@@ -545,7 +544,7 @@ const waitForSubnetAvailable = (
     Effect.retry({
       while: (e) => e instanceof SubnetPending,
       schedule: Schedule.fixed(2000).pipe(
-        Schedule.intersect(Schedule.recurs(30)), // Max 60 seconds
+        Schedule.both(Schedule.recurs(30)), // Max 60 seconds
         Schedule.tapOutput(([, attempt]) =>
           session
             ? session.note(
@@ -583,7 +582,7 @@ const waitForSubnetDeleted = (
     Effect.retry({
       while: (e) => e instanceof SubnetStillExists,
       schedule: Schedule.fixed(2000).pipe(
-        Schedule.intersect(Schedule.recurs(15)), // Max 30 seconds
+        Schedule.both(Schedule.recurs(15)), // Max 30 seconds
         Schedule.tapOutput(([, attempt]) =>
           session.note(
             `Waiting for subnet deletion... (${(attempt + 1) * 2}s)`,

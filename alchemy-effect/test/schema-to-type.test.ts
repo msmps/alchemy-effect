@@ -1,6 +1,6 @@
 import * as S from "effect/Schema";
 import { describe, expect, it } from "vitest";
-import { fromAST, schemaToType } from "../src/schema-to-type.js";
+import { fromAST, schemaToType } from "../src/Util/schema-to-type.js";
 
 describe("schema-to-type", () => {
   describe("primitive types", () => {
@@ -23,13 +23,13 @@ describe("schema-to-type", () => {
     });
 
     it("should convert BigInt schema", () => {
-      const result = schemaToType(S.BigIntFromSelf);
+      const result = schemaToType(S.BigInt);
       expect(result.exprs).toStrictEqual(["bigint"]);
       expect(result.types).toBe("");
     });
 
     it("should convert Symbol schema", () => {
-      const result = schemaToType(S.SymbolFromSelf);
+      const result = schemaToType(S.Symbol);
       expect(result.exprs).toStrictEqual(["symbol"]);
       expect(result.types).toBe("");
     });
@@ -53,7 +53,6 @@ describe("schema-to-type", () => {
     });
 
     it("should convert Never schema", () => {
-      // @ts-expect-error
       const result = schemaToType(S.Never);
       expect(result.exprs).toStrictEqual(["never"]);
       expect(result.types).toBe("");
@@ -92,7 +91,7 @@ describe("schema-to-type", () => {
     });
 
     it("should convert null literal", () => {
-      const result = schemaToType(S.Literal(null));
+      const result = schemaToType(S.Null);
       expect(result.exprs).toStrictEqual(["null"]);
       expect(result.types).toBe("");
     });
@@ -106,14 +105,14 @@ describe("schema-to-type", () => {
 
   describe("union types", () => {
     it("should convert union of literals", () => {
-      const schema = S.Literal("a", "b", "c");
+      const schema = S.Literals(["a", "b", "c"]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(['"a" | "b" | "c"']);
       expect(result.types).toBe("");
     });
 
     it("should convert union of primitives", () => {
-      const schema = S.Union(S.String, S.Number);
+      const schema = S.Union([S.String, S.Number]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["string | number"]);
       expect(result.types).toBe("");
@@ -127,14 +126,14 @@ describe("schema-to-type", () => {
     });
 
     it("should handle optional types in union", () => {
-      const schema = S.Union(S.String, S.Undefined);
+      const schema = S.Union([S.String, S.Undefined]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["string | undefined"]);
       expect(result.types).toBe("");
     });
 
     it("should handle named union with identifier annotation", () => {
-      const MyUnion = S.Union(S.Literal("A"), S.Literal("B")).annotations({
+      const MyUnion = S.Union([S.Literal("A"), S.Literal("B")]).annotate({
         identifier: "MyUnion",
       });
       const result = schemaToType(MyUnion);
@@ -143,11 +142,11 @@ describe("schema-to-type", () => {
     });
 
     it("should reference named union in other types", () => {
-      const Status = S.Union(
+      const Status = S.Union([
         S.Literal("pending"),
         S.Literal("active"),
         S.Literal("completed"),
-      ).annotations({ identifier: "Status" });
+      ]).annotate({ identifier: "Status" });
 
       class Task extends S.Class<Task>("Task")({
         id: S.String,
@@ -166,11 +165,11 @@ interface Task {
     });
 
     it("should deduplicate named unions referenced multiple times", () => {
-      const Priority = S.Union(
+      const Priority = S.Union([
         S.Literal("low"),
         S.Literal("medium"),
         S.Literal("high"),
-      ).annotations({ identifier: "Priority" });
+      ]).annotate({ identifier: "Priority" });
 
       class Task extends S.Class<Task>("Task")({
         priority: Priority,
@@ -219,21 +218,21 @@ interface Project {
 
   describe("tuple types", () => {
     it("should convert simple tuple", () => {
-      const schema = S.Tuple(S.String, S.Number);
+      const schema = S.Tuple([S.String, S.Number]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["readonly [string, number]"]);
       expect(result.types).toBe("");
     });
 
     it("should convert tuple with optional element", () => {
-      const schema = S.Tuple(S.String, S.optionalElement(S.Number));
+      const schema = S.Tuple([S.String, S.optional(S.Number)]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["readonly [string, number?]"]);
       expect(result.types).toBe("");
     });
 
     it("should convert tuple with rest element", () => {
-      const schema = S.Tuple([S.String], S.Number);
+      const schema = S.TupleWithRest(S.Tuple([S.String]), [S.Number]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["readonly [string, ...number[]]"]);
       expect(result.types).toBe("");
@@ -273,8 +272,8 @@ interface Project {
 
     it("should convert mutable struct", () => {
       const schema = S.Struct({
-        id: S.String,
-      }).pipe(S.mutable);
+        id: S.String.pipe(S.mutableKey),
+      });
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual([
         `{
@@ -286,8 +285,8 @@ interface Project {
 
     it("should convert struct with description annotations", () => {
       const schema = S.Struct({
-        name: S.String.annotations({ description: "The person's name" }),
-        age: S.Number.annotations({ description: "The person's age in years" }),
+        name: S.String.annotate({ description: "The person's name" }),
+        age: S.Number.annotate({ description: "The person's age in years" }),
       });
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual([
@@ -321,7 +320,7 @@ interface Project {
 
   describe("record types", () => {
     it("should convert Record with string keys", () => {
-      const schema = S.Record({ key: S.String, value: S.Number });
+      const schema = S.Record(S.String, S.Number);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual([
         `{
@@ -337,7 +336,7 @@ interface Project {
       const Point = S.Struct({
         x: S.Number,
         y: S.Number,
-      }).annotations({ identifier: "Point" });
+      }).annotate({ identifier: "Point" });
 
       const result = schemaToType(Point);
       expect(result.exprs).toStrictEqual(["Point"]);
@@ -351,7 +350,7 @@ interface Project {
       const Coordinates = S.Struct({
         lat: S.Number,
         lng: S.Number,
-      }).annotations({ identifier: "Coordinates" });
+      }).annotate({ identifier: "Coordinates" });
 
       class Location extends S.Class<Location>("Location")({
         name: S.String,
@@ -372,7 +371,7 @@ interface Location {
     });
 
     it("should handle named array type", () => {
-      const StringList = S.Array(S.String).annotations({
+      const StringList = S.Array(S.String).annotate({
         identifier: "StringList",
       });
 
@@ -382,7 +381,7 @@ interface Location {
     });
 
     it("should handle named tuple type", () => {
-      const Point3D = S.Tuple(S.Number, S.Number, S.Number).annotations({
+      const Point3D = S.Tuple([S.Number, S.Number, S.Number]).annotate({
         identifier: "Point3D",
       });
 
@@ -486,7 +485,7 @@ interface Container {
         bark: S.Boolean,
       }) {}
 
-      const Animal = S.Union(Cat, Dog);
+      const Animal = S.Union([Cat, Dog]);
       const result = schemaToType(Animal);
       expect(result.exprs).toStrictEqual(["Cat | Dog"]);
       expect(result.types).toBe(`interface Cat {
@@ -503,14 +502,14 @@ interface Dog {
 
   describe("refinement types", () => {
     it("should treat refinements as their base type", () => {
-      const schema = S.String.pipe(S.minLength(1));
+      const schema = S.String.pipe(S.check(S.isMinLength(1)));
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["string"]);
       expect(result.types).toBe("");
     });
 
     it("should handle Int refinement", () => {
-      const schema = S.Number.pipe(S.int());
+      const schema = S.Int;
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["number"]);
       expect(result.types).toBe("");
@@ -533,7 +532,7 @@ interface Dog {
         Green = "green",
         Blue = "blue",
       }
-      const schema = S.Enums(Color);
+      const schema = S.Enum(Color);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(['"red" | "green" | "blue"']);
       expect(result.types).toBe("");
@@ -544,7 +543,7 @@ interface Dog {
         Active = 1,
         Inactive = 2,
       }
-      const schema = S.Enums(Status);
+      const schema = S.Enum(Status);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["1 | 2"]);
       expect(result.types).toBe("");
@@ -553,14 +552,14 @@ interface Dog {
 
   describe("template literal types", () => {
     it("should convert simple template literal", () => {
-      const schema = S.TemplateLiteral("hello-", S.String);
+      const schema = S.TemplateLiteral(["hello-", S.String]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["`hello-${string}`"]);
       expect(result.types).toBe("");
     });
 
     it("should convert template literal with number", () => {
-      const schema = S.TemplateLiteral("item-", S.Number);
+      const schema = S.TemplateLiteral(["item-", S.Number]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["`item-${number}`"]);
       expect(result.types).toBe("");
@@ -620,7 +619,7 @@ interface UsersData {
         value: S.Number,
       }) {}
 
-      const schema = S.Union(TypeA, TypeB);
+      const schema = S.Union([TypeA, TypeB]);
       const result = schemaToType(schema);
       expect(result.exprs).toStrictEqual(["TypeA | TypeB"]);
       expect(result.types).toBe(`interface TypeA {
@@ -793,7 +792,7 @@ interface Order {
 
     it("should handle S.Class with description", () => {
       class Documented extends S.Class<Documented>("Documented")({
-        field: S.String.annotations({ description: "A documented field" }),
+        field: S.String.annotate({ description: "A documented field" }),
       }) {}
 
       const result = schemaToType(Documented);
@@ -806,7 +805,7 @@ interface Order {
 
     it("should handle multi-line descriptions", () => {
       class MultiLineDoc extends S.Class<MultiLineDoc>("MultiLineDoc")({
-        field: S.String.annotations({
+        field: S.String.annotate({
           description:
             "This is a multi-line description.\nIt has multiple lines.\nAnd even more lines.",
         }),
@@ -826,7 +825,7 @@ interface Order {
 
     it("should handle descriptions with code snippets", () => {
       class CodeSnippetDoc extends S.Class<CodeSnippetDoc>("CodeSnippetDoc")({
-        field: S.String.annotations({
+        field: S.String.annotate({
           description: `A field with code example.
 
 \`\`\`typescript

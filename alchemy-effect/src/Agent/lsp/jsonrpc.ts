@@ -259,7 +259,7 @@ export const make = (proc: Subprocess) =>
           }
         }),
       ),
-      Effect.catchAll((e) => Effect.logWarning(`JSON-RPC reader error: ${e}`)),
+      Effect.catch((e) => Effect.logWarning(`JSON-RPC reader error: ${e}`)),
       Effect.fork,
     );
 

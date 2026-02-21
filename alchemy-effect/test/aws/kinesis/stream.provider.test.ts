@@ -429,7 +429,7 @@ const assertStreamDeleted = Effect.fn(function* (streamName: string) {
         // During stream deletion, AWS may return incomplete responses that fail parsing
         e._tag === "ParseError",
       schedule: Schedule.exponential(500).pipe(
-        Schedule.intersect(Schedule.recurs(30)),
+        Schedule.both(Schedule.recurs(30)),
       ),
     }),
     Effect.catchTag("ResourceNotFoundException", () => Effect.void),

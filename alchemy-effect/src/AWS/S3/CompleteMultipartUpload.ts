@@ -1,63 +1,35 @@
-import * as Effect from "effect/Effect";
-
 import * as S3 from "distilled-aws/s3";
-import { declare, type Capability, type To } from "../../Capability.ts";
-import { toEnvKey } from "../../Env.ts";
-import { Bucket } from "./Bucket.ts";
+import * as Effect from "effect/Effect";
+import * as Binding from "../../Binding.ts";
+import * as Output from "../../Output/index.ts";
+import * as Lambda from "../Lambda/index.ts";
+import type { Bucket } from "./Bucket.ts";
 
-export interface CompleteMultipartUpload<B = Bucket> extends Capability<
+export interface CompleteMultipartUploadRequest
+  extends Omit<S3.CompleteMultipartUploadRequest, "Bucket"> {}
+
+export const CompleteMultipartUpload = Binding.make(
   "AWS.S3.CompleteMultipartUpload",
-  B
-> {}
+  <B extends Bucket>(bucket: B) =>
+    Binding.fn(bucket, function* (request: CompleteMultipartUploadRequest) {
+      return yield* S3.completeMultipartUpload({
+        ...request,
+        Bucket: yield* bucket.bucketName(),
+      });
+    }),
+);
 
-export const CompleteMultipartUpload = Binding(
-  "AWS.S3.CompleteMultipartUpload",
-)<<B extends Bucket>(bucket: B) => CompleteMultipartUpload<To<B>>>();
-
-export interface CompletedPart {
-  etag: string;
-  partNumber: number;
-}
-
-export interface CompleteMultipartUploadOptions {
-  key: string;
-  uploadId: string;
-  parts: CompletedPart[];
-}
-
-export const completeMultipartUpload = Effect.fnUntraced(function* <
-  B extends Bucket,
->(bucket: B, options: CompleteMultipartUploadOptions) {
-  yield* declare<CompleteMultipartUpload<To<B>>>();
-  const bucketName = process.env[toEnvKey(bucket.id, "BUCKET_NAME")]!;
-
-  return yield* S3.completeMultipartUpload({
-    Bucket: bucketName,
-    Key: options.key,
-    UploadId: options.uploadId,
-    MultipartUpload: {
-      Parts: options.parts.map((part) => ({
-        ETag: part.etag,
-        PartNumber: part.partNumber,
-      })),
-    },
-  });
-});
-
-export const CompleteMultipartUploadBinding = () =>
-  CompleteMultipartUpload.provider.succeed({
-    attach: ({ source: bucket }) => ({
-      env: {
-        [toEnvKey(bucket.id, "BUCKET_NAME")]: bucket.attr.bucketName,
-        [toEnvKey(bucket.id, "BUCKET_ARN")]: bucket.attr.bucketArn,
-      },
+export const CompleteMultipartUploadLambda = Binding.effect(
+  [Lambda.Function, CompleteMultipartUpload],
+  (func, bucket) =>
+    Effect.succeed({
       policyStatements: [
         {
           Sid: "CompleteMultipartUpload",
           Effect: "Allow",
           Action: ["s3:PutObject"],
-          Resource: [`${bucket.attr.bucketArn}/*`],
+          Resource: [Output.interpolate`${bucket.bucketArn()}/*`],
         },
       ],
     }),
-  });
+);

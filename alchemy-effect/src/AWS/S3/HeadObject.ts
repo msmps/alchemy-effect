@@ -1,70 +1,35 @@
-import * as Effect from "effect/Effect";
-
 import * as S3 from "distilled-aws/s3";
-import {
-  declare,
-  type Capability,
-  type In,
-  type To,
-} from "../../Capability.ts";
-import { toEnvKey } from "../../Env.ts";
-import { Bucket } from "./Bucket.ts";
+import * as Effect from "effect/Effect";
+import * as Binding from "../../Binding.ts";
+import * as Output from "../../Output/index.ts";
+import * as Lambda from "../Lambda/index.ts";
+import type { Bucket } from "./Bucket.ts";
 
-export interface HeadObject<B = Bucket> extends Capability<
+export interface HeadObjectRequest
+  extends Omit<S3.HeadObjectRequest, "Bucket"> {}
+
+export const HeadObject = Binding.make(
   "AWS.S3.HeadObject",
-  B
-> {}
+  <B extends Bucket>(bucket: B) =>
+    Binding.fn(bucket, function* (request: HeadObjectRequest) {
+      return yield* S3.headObject({
+        ...request,
+        Bucket: yield* bucket.bucketName(),
+      });
+    }),
+);
 
-export const HeadObject =
-  Binding("AWS.S3.HeadObject")<
-    <B extends Bucket>(bucket: B) => HeadObject<In<B>>
-  >();
-
-export interface HeadObjectOptions {
-  key: string;
-  versionId?: string;
-  ifMatch?: string;
-  ifNoneMatch?: string;
-  ifModifiedSince?: Date;
-  ifUnmodifiedSince?: Date;
-  range?: string;
-  partNumber?: number;
-}
-
-export const headObject = Effect.fnUntraced(function* <B extends Bucket>(
-  bucket: B,
-  options: HeadObjectOptions,
-) {
-  yield* declare<HeadObject<To<B>>>();
-  const bucketName = process.env[toEnvKey(bucket.id, "BUCKET_NAME")]!;
-
-  return yield* S3.headObject({
-    Bucket: bucketName,
-    Key: options.key,
-    VersionId: options.versionId,
-    IfMatch: options.ifMatch,
-    IfNoneMatch: options.ifNoneMatch,
-    IfModifiedSince: options.ifModifiedSince,
-    IfUnmodifiedSince: options.ifUnmodifiedSince,
-    Range: options.range,
-    PartNumber: options.partNumber,
-  });
-});
-
-export const HeadObjectBinding = () =>
-  HeadObject.provider.succeed({
-    attach: ({ source: bucket }) => ({
-      env: {
-        [toEnvKey(bucket.id, "BUCKET_NAME")]: bucket.attr.bucketName,
-        [toEnvKey(bucket.id, "BUCKET_ARN")]: bucket.attr.bucketArn,
-      },
+export const HeadObjectLambda = Binding.effect(
+  [Lambda.Function, HeadObject],
+  (func, bucket) =>
+    Effect.succeed({
       policyStatements: [
         {
           Sid: "HeadObject",
           Effect: "Allow",
           Action: ["s3:GetObject"],
-          Resource: [`${bucket.attr.bucketArn}/*`],
+          Resource: [Output.interpolate`${bucket.bucketArn()}/*`],
         },
       ],
     }),
-  });
+);

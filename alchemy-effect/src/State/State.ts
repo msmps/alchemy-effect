@@ -1,6 +1,6 @@
-import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as ServiceMap from "effect/ServiceMap";
 import type { ReplacedResourceState, ResourceState } from "./ResourceState.ts";
 
 // SQL only?? no
@@ -51,10 +51,9 @@ export class StateStoreError extends Data.TaggedError("StateStoreError")<{
   message: string;
 }> {}
 
-export class State extends Context.Tag("AWS::Lambda::State")<
-  State,
-  StateService
->() {}
+export class State extends ServiceMap.Service<State, StateService>()(
+  "AWS::Lambda::State",
+) {}
 
 export interface StateService {
   listStacks(): Effect.Effect<string[], StateStoreError, never>;

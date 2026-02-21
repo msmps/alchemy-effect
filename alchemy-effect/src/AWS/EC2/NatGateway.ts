@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
 import type { ScopedPlanStatusSession } from "../../Cli.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import {
   createAlchemyTagFilters,
@@ -23,7 +23,7 @@ export const NatGateway = Resource<{
   <const ID extends string, const Props extends NatGatewayProps>(
     id: ID,
     props: Props,
-  ): NatGateway<ID, Props>;
+  ): Effect.Effect<NatGateway<ID, Props>>;
 }>("AWS.EC2.NatGateway");
 
 export interface NatGateway<
@@ -33,8 +33,7 @@ export interface NatGateway<
   "AWS.EC2.NatGateway",
   ID,
   Props,
-  NatGatewayAttrs<Input.Resolve<Props>>,
-  NatGateway
+  NatGatewayAttrs<Input.Resolve<Props>>
 > {}
 
 export type NatGatewayId<ID extends string = string> = `nat-${ID}`;
@@ -427,7 +426,7 @@ const waitForNatGatewayAvailable = (
     Effect.retry({
       while: (e) => e._tag === "NatGatewayPending",
       schedule: Schedule.fixed(5000).pipe(
-        Schedule.intersect(Schedule.recurs(60)), // Max 5 minutes
+        Schedule.both(Schedule.recurs(60)), // Max 5 minutes
         Schedule.tapOutput(([, attempt]) =>
           session.note(
             `Waiting for NAT Gateway to be available... (${(attempt + 1) * 5}s)`,
@@ -474,7 +473,7 @@ const waitForNatGatewayDeleted = (
     Effect.retry({
       while: (e) => e._tag === "NatGatewayDeleting",
       schedule: Schedule.fixed(5000).pipe(
-        Schedule.intersect(Schedule.recurs(60)), // Max 5 minutes
+        Schedule.both(Schedule.recurs(60)), // Max 5 minutes
         Schedule.tapOutput(([, attempt]) =>
           session.note(
             `Waiting for NAT Gateway deletion... (${(attempt + 1) * 5}s)`,

@@ -3,7 +3,7 @@ import { Region } from "distilled-aws/Region";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList, diffTags } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -14,7 +14,7 @@ export const EIP = Resource<{
   <const ID extends string, const Props extends EIPProps>(
     id: ID,
     props: Props,
-  ): EIP<ID, Props>;
+  ): Effect.Effect<EIP<ID, Props>>;
 }>("AWS.EC2.EIP");
 
 export interface EIP<
@@ -24,8 +24,7 @@ export interface EIP<
   "AWS.EC2.EIP",
   ID,
   Props,
-  EipAttrs<Input.Resolve<Props>>,
-  EIP
+  EipAttrs<Input.Resolve<Props>>
 > {}
 
 export type AllocationId<ID extends string = string> = `eipalloc-${ID}`;
@@ -277,7 +276,7 @@ export const EIPProvider = () =>
                   );
                 },
                 schedule: Schedule.exponential(1000, 1.5).pipe(
-                  Schedule.intersect(Schedule.recurs(20)),
+                  Schedule.both(Schedule.recurs(20)),
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `EIP still in use, waiting for release... (attempt ${attempt + 1})`,

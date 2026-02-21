@@ -1,4 +1,4 @@
 import * as Effect from "effect/Effect";
 
 export const todo = (message?: string) =>
-  Effect.dieMessage(message ?? `Not implemented`);
+  Effect.die(message ?? `Not implemented`);

@@ -11,7 +11,7 @@ export interface MiddlewareClass<
   Err = never,
   Req = never,
   ProvidedReq = never,
-> extends Context.TagClass<
+> extends ServiceMap.ServiceClass<
   MiddlewareClass<P, T, Err, Req>,
   `${T["tag"]}:${P["Id"]}:Middleware`,
   {

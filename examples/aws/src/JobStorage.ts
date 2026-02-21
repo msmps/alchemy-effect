@@ -1,5 +1,4 @@
 import * as S3 from "alchemy-effect/AWS/S3";
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 
 import { SLayer } from "alchemy-effect";

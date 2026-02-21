@@ -5,14 +5,14 @@ import * as R2 from "@/cloudflare/r2";
 import { apply, destroy } from "@/index";
 import { test } from "@/Test/Vitest";
 import { expect } from "@effect/vitest";
-import { LogLevel } from "effect";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import * as Logger from "effect/Logger";
+import { MinimumLogLevel } from "effect/References";
 import * as Schedule from "effect/Schedule";
 
-const logLevel = Logger.withMinimumLogLevel(
-  process.env.DEBUG ? LogLevel.Debug : LogLevel.Info,
+const logLevel = Effect.provideService(
+  MinimumLogLevel,
+  process.env.DEBUG ? "Debug" : "Info",
 );
 
 test(

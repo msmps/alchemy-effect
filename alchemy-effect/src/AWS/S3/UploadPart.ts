@@ -1,62 +1,35 @@
-import * as Effect from "effect/Effect";
-
 import * as S3 from "distilled-aws/s3";
-import { Binding } from "../../../lib/Binding.ts";
-import { declare, type Capability, type To } from "../../../lib/Capability.ts";
-import { toEnvKey } from "../../../lib/internal/util/env.ts";
-import { Function } from "../Lambda/Function.ts";
-import { Bucket } from "./Bucket.ts";
+import * as Effect from "effect/Effect";
+import * as Binding from "../../Binding.ts";
+import * as Output from "../../Output/index.ts";
+import * as Lambda from "../Lambda/index.ts";
+import type { Bucket } from "./Bucket.ts";
 
-export interface UploadPart<B = Bucket> extends Capability<
+export interface UploadPartRequest
+  extends Omit<S3.UploadPartRequest, "Bucket"> {}
+
+export const UploadPart = Binding.make(
   "AWS.S3.UploadPart",
-  B
-> {}
+  <B extends Bucket>(bucket: B) =>
+    Binding.fn(bucket, function* (request: UploadPartRequest) {
+      return yield* S3.uploadPart({
+        ...request,
+        Bucket: yield* bucket.bucketName(),
+      });
+    }),
+);
 
-export const UploadPart = Binding<
-  <B extends Bucket>(bucket: B) => Binding<Function, UploadPart<To<B>>>
->(Function, "AWS.S3.UploadPart");
-
-export interface UploadPartOptions {
-  key: string;
-  uploadId: string;
-  partNumber: number;
-  body: string | Buffer | Uint8Array;
-  contentLength?: number;
-  contentMD5?: string;
-}
-
-export const uploadPart = Effect.fnUntraced(function* <B extends Bucket>(
-  bucket: B,
-  options: UploadPartOptions,
-) {
-  yield* declare<UploadPart<To<B>>>();
-  const bucketName = process.env[toEnvKey(bucket.id, "BUCKET_NAME")]!;
-
-  return yield* S3.uploadPart({
-    Bucket: bucketName,
-    Key: options.key,
-    UploadId: options.uploadId,
-    PartNumber: options.partNumber,
-    Body: options.body,
-    ContentLength: options.contentLength,
-    ContentMD5: options.contentMD5,
-  });
-});
-
-export const UploadPartBinding = () =>
-  UploadPart.provider.succeed({
-    attach: ({ source: bucket }) => ({
-      env: {
-        [toEnvKey(bucket.id, "BUCKET_NAME")]: bucket.attr.bucketName,
-        [toEnvKey(bucket.id, "BUCKET_ARN")]: bucket.attr.bucketArn,
-      },
+export const UploadPartLambda = Binding.effect(
+  [Lambda.Function, UploadPart],
+  (func, bucket) =>
+    Effect.succeed({
       policyStatements: [
         {
           Sid: "UploadPart",
           Effect: "Allow",
           Action: ["s3:PutObject"],
-          Resource: [`${bucket.attr.bucketArn}/*`],
+          Resource: [Output.interpolate`${bucket.bucketArn()}/*`],
         },
       ],
     }),
-  });
+);

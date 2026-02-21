@@ -1,14 +1,11 @@
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as ServiceMap from "effect/ServiceMap";
 import type { ScopedPlanStatusSession } from "./Cli/index.ts";
 import type { Diff } from "./Diff.ts";
 import type { Input } from "./Input.ts";
 import type { Resource } from "./Resource.ts";
-import type { Service } from "./Service.ts";
 
-export interface Provider<
-  R extends Resource | Service,
-> extends Context.TagClass<
+export interface Provider<R extends Resource> extends ServiceMap.ServiceClass<
   Provider<R>,
   R["type"],
   ProviderService<any>
@@ -101,8 +98,8 @@ export interface ProviderService<
 export const getProviderByType = Effect.fnUntraced(function* (
   resourceType: string,
 ) {
-  const context = yield* Effect.context<never>();
-  const provider: ProviderService = context.unsafeMap.get(resourceType);
+  const context = yield* Effect.services<never>();
+  const provider: ProviderService = context.mapUnsafe.get(resourceType);
   if (!provider) {
     return yield* Effect.die(
       new Error(`Provider not found for ${resourceType}`),

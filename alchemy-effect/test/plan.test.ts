@@ -305,7 +305,7 @@ const testSimple = (
             Effect.map(() => false),
             // @ts-expect-error
             Effect.catchTag(testCase.fail, () => Effect.succeed(true)),
-            Effect.catchAll(() => Effect.succeed(false)),
+            Effect.catch(() => Effect.succeed(false)),
           ) as Effect.Effect<boolean>;
           if (!result) {
             expect.fail(`Expected error '${testCase.fail}`);

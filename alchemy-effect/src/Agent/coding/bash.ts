@@ -178,7 +178,7 @@ Important:
   if (validator) {
     const validationError = yield* validator.validate(command).pipe(
       Effect.map(() => null),
-      Effect.catchAll((e) => Effect.succeed(`${e}`)),
+      Effect.catch((e) => Effect.succeed(`${e}`)),
     );
     if (validationError) {
       return `Security violation: ${validationError}`;

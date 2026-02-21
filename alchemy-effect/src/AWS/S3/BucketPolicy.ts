@@ -1,6 +1,6 @@
 import * as S3 from "distilled-aws/s3";
 import * as Effect from "effect/Effect";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import type { PolicyDocument } from "../IAM/index.ts";
 import type { BucketName } from "./Bucket.ts";
@@ -29,7 +29,7 @@ export const BucketPolicy = Resource<{
   <const ID extends string, const Props extends BucketPolicyProps>(
     id: ID,
     props: Props,
-  ): BucketPolicy<ID, Props>;
+  ): Effect.Effect<BucketPolicy<ID, Props>>;
 }>("AWS.S3.BucketPolicy");
 
 export interface BucketPolicy<
@@ -39,8 +39,7 @@ export interface BucketPolicy<
   "AWS.S3.BucketPolicy",
   ID,
   Props,
-  BucketPolicyAttrs<Input.Resolve<Props>>,
-  BucketPolicy
+  BucketPolicyAttrs<Input.Resolve<Props>>
 > {}
 
 export const BucketPolicyProvider = () =>

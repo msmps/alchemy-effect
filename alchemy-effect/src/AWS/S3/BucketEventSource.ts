@@ -187,7 +187,7 @@ export const BucketEventSourceBind = () =>
               Bucket: bucket.attr.bucketName,
             })
             .pipe(
-              Effect.catchAll(() =>
+              Effect.catch(() =>
                 Effect.succeed({} as { LambdaFunctionConfigurations?: any[] }),
               ),
             );
@@ -204,14 +204,14 @@ export const BucketEventSourceBind = () =>
                     ),
                 },
               })
-              .pipe(Effect.catchAll(() => Effect.void));
+              .pipe(Effect.catch(() => Effect.void));
           }
 
           // Remove Lambda permission
           yield* Lambda.removePermission({
             FunctionName: functionName,
             StatementId: `s3-invoke-${bucket.id}`,
-          }).pipe(Effect.catchAll(() => Effect.void));
+          }).pipe(Effect.catch(() => Effect.void));
         }),
       };
     }),

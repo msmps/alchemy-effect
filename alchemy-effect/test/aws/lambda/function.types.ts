@@ -32,7 +32,7 @@ const func = Lambda.serve("MyFunction", {
         id: "id",
         sk: "sk",
       },
-    }).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+    }).pipe(Effect.catch(() => Effect.succeed(undefined)));
     return {
       body: JSON.stringify(item?.Item),
     };
@@ -113,7 +113,7 @@ const MonitorSimple = <const ID extends string, Req>(
 const monitor = MonitorSimple("MyMonitor", {
   onAlarm: Effect.fn(function* (message) {
     yield* SQS.sendMessage(Queue, message).pipe(
-      Effect.catchAll(() => Effect.void),
+      Effect.catch(() => Effect.void),
     );
   }),
 });
@@ -175,7 +175,7 @@ const MonitorComplex = <const ID extends string, ReqAlarm, ReqResolved>(
       queue: Messages,
       handle: Effect.fn(function* (batch) {
         yield* SQS.sendMessage(Messages, "hello").pipe(
-          Effect.catchAll(() => Effect.void),
+          Effect.catch(() => Effect.void),
         );
         if (onAlarm) {
           yield* onAlarm(batch);
@@ -201,14 +201,14 @@ const monitorComplex = MonitorComplex("MyMonitor", {
   onAlarm: Effect.fn(function* (batch) {
     for (const record of batch.Records) {
       yield* SQS.sendMessage(Outer, record.body).pipe(
-        Effect.catchAll(() => Effect.void),
+        Effect.catch(() => Effect.void),
       );
     }
   }),
   onResolved: Effect.fn(function* (batch) {
     for (const record of batch.Records) {
       yield* SQS.sendMessage(Outer, record.body).pipe(
-        Effect.catchAll(() => Effect.void),
+        Effect.catch(() => Effect.void),
       );
     }
   }),

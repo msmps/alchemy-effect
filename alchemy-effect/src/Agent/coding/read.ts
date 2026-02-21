@@ -56,7 +56,7 @@ Given a ${filePath} and optional ${offset} and ${limit}:
 
   const exists = yield* fs
     .exists(filePath)
-    .pipe(Effect.catchAll(() => Effect.succeed(false)));
+    .pipe(Effect.catch(() => Effect.succeed(false)));
 
   if (!exists) {
     // Try to get suggestions from parent directory
@@ -64,12 +64,12 @@ Given a ${filePath} and optional ${offset} and ${limit}:
     const base = path.basename(filePath);
     const dirExists = yield* fs
       .exists(dir)
-      .pipe(Effect.catchAll(() => Effect.succeed(false)));
+      .pipe(Effect.catch(() => Effect.succeed(false)));
 
     if (dirExists) {
       const files = yield* fs
         .readDirectory(dir)
-        .pipe(Effect.catchAll(() => Effect.succeed([] as string[])));
+        .pipe(Effect.catch(() => Effect.succeed([] as string[])));
       const suggestions = files
         .filter(
           (entry) =>
@@ -91,12 +91,12 @@ Given a ${filePath} and optional ${offset} and ${limit}:
   // Check if it's a directory
   const stat = yield* fs
     .stat(filePath)
-    .pipe(Effect.catchAll(() => Effect.succeed(null)));
+    .pipe(Effect.catch(() => Effect.succeed(null)));
 
   if (stat?.type === "Directory") {
     const entries = yield* fs
       .readDirectory(filePath)
-      .pipe(Effect.catchAll(() => Effect.succeed([] as string[])));
+      .pipe(Effect.catch(() => Effect.succeed([] as string[])));
     return {
       content: `Cannot read directory as a file: ${filePath}\nThis is a directory. Contents:\n${entries.slice(0, 10).join("\n")}${entries.length > 10 ? "\n..." : ""}`,
     };
@@ -105,7 +105,7 @@ Given a ${filePath} and optional ${offset} and ${limit}:
   const fileContent = yield* fs
     .readFileString(filePath)
     .pipe(
-      Effect.catchAll((e) =>
+      Effect.catch((e) =>
         Effect.succeed(`Failed to read file ${filePath}: ${e}`),
       ),
     );

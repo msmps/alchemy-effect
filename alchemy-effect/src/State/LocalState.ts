@@ -1,8 +1,8 @@
-import type { PlatformError } from "@effect/platform/Error";
-import * as FileSystem from "@effect/platform/FileSystem";
-import * as Path from "@effect/platform/Path";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
+import type { PlatformError } from "effect/PlatformError";
 import { isResource } from "../Resource.ts";
 import { State, StateStoreError, type StateService } from "./State.ts";
 
@@ -25,7 +25,7 @@ export const LocalState = Layer.effect(
     const recover = <T>(effect: Effect.Effect<T, PlatformError, never>) =>
       effect.pipe(
         Effect.catchTag("SystemError", (e) =>
-          e.reason === "NotFound" ? Effect.succeed(undefined) : fail(e),
+          e.reason._tag === "NotFound" ? Effect.succeed(undefined) : fail(e),
         ),
         Effect.catchTag("BadArgument", (e) => fail(e)),
       );

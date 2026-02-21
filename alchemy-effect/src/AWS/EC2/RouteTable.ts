@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
 import type { ScopedPlanStatusSession } from "../../Cli.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -17,7 +17,7 @@ export const RouteTable = Resource<{
   <const ID extends string, const Props extends RouteTableProps>(
     id: ID,
     props: Props,
-  ): RouteTable<ID, Props>;
+  ): Effect.Effect<RouteTable<ID, Props>>;
 }>("AWS.EC2.RouteTable");
 
 export interface RouteTable<
@@ -27,8 +27,7 @@ export interface RouteTable<
   "AWS.EC2.RouteTable",
   ID,
   Props,
-  RouteTableAttrs<Input.Resolve<Props>>,
-  RouteTable
+  RouteTableAttrs<Input.Resolve<Props>>
 > {}
 
 export type RouteTableId<ID extends string = string> = `rtb-${ID}`;
@@ -375,7 +374,7 @@ export const RouteTableProvider = () =>
                   return e._tag === "DependencyViolation";
                 },
                 schedule: Schedule.exponential(1000, 1.5).pipe(
-                  Schedule.intersect(Schedule.recurs(10)), // Try up to 10 times
+                  Schedule.both(Schedule.recurs(10)), // Try up to 10 times
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `Waiting for dependencies to clear... (attempt ${attempt + 1})`,
@@ -448,7 +447,7 @@ const waitForRouteTableDeleted = (
       {
         schedule: Schedule.fixed(2000).pipe(
           // Check every 2 seconds
-          Schedule.intersect(Schedule.recurs(15)), // Max 30 seconds
+          Schedule.both(Schedule.recurs(15)), // Max 30 seconds
           Schedule.tapOutput(([, attempt]) =>
             session.note(
               `Waiting for route table deletion... (${(attempt + 1) * 2}s)`,

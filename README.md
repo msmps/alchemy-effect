@@ -97,7 +97,7 @@ The function always returns an `Effect<A, Err, Req>` which is then used to infer
 class Api extends Lambda.serve("Api", {
   fetch: Effect.fn(function* (event) {
     yield* SQS.sendMessage(Messages, event.body!).pipe(
-      Effect.catchAll(() => Effect.void),
+      Effect.catch(() => Effect.void),
     );
   }),
 })({
@@ -160,7 +160,7 @@ const Monitor = <const ID extends string, ReqAlarm, ReqResolved>(
         yield* SQS.sendMessage(Messages, {
           id: 1,
           value: "1",
-        }).pipe(Effect.catchAll(() => Effect.void));
+        }).pipe(Effect.catch(() => Effect.void));
         if (onAlarm) {
           yield* onAlarm(batch);
         }

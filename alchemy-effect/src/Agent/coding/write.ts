@@ -48,12 +48,12 @@ Given a ${filePath} and ${content}:
   const dir = path.dirname(filePath);
   yield* fs
     .makeDirectory(dir, { recursive: true })
-    .pipe(Effect.catchAll(() => Effect.void));
+    .pipe(Effect.catch(() => Effect.void));
 
   const writeResult = yield* fs
     .writeFileString(filePath, content)
     .pipe(
-      Effect.catchAll((e) =>
+      Effect.catch((e) =>
         Effect.succeed(`Failed to write file ${filePath}: ${e}`),
       ),
     );

@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
 import { somePropsAreDifferent } from "../../Diff.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import type { RouteTableId } from "./RouteTable.ts";
 
@@ -12,7 +12,7 @@ export const Route = Resource<{
   <const ID extends string, const Props extends RouteProps>(
     id: ID,
     props: Props,
-  ): Route<ID, Props>;
+  ): Effect.Effect<Route<ID, Props>>;
 }>("AWS.EC2.Route");
 
 export interface Route<
@@ -22,8 +22,7 @@ export interface Route<
   "AWS.EC2.Route",
   ID,
   Props,
-  RouteAttrs<Input.Resolve<Props>>,
-  Route
+  RouteAttrs<Input.Resolve<Props>>
 > {}
 
 export interface RouteProps {

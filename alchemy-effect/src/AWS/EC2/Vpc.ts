@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import type { ScopedPlanStatusSession } from "../../Cli.ts";
 import { somePropsAreDifferent } from "../../Diff.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList, diffTags } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -21,7 +21,7 @@ export const Vpc = Resource<{
   <const ID extends string, const Props extends VpcProps>(
     id: ID,
     props: Props,
-  ): Vpc<ID, Props>;
+  ): Effect.Effect<Vpc<ID, Props>>;
 }>("AWS.EC2.VPC");
 
 export interface Vpc<
@@ -31,8 +31,7 @@ export interface Vpc<
   "AWS.EC2.VPC",
   ID,
   Props,
-  VpcAttrs<Input.Resolve<Props>>,
-  Vpc
+  VpcAttrs<Input.Resolve<Props>>
 > {}
 
 export interface VpcProps {
@@ -358,7 +357,7 @@ export const VpcProvider = () =>
                 },
                 // Use fixed 5s delay instead of exponential to avoid very long waits
                 schedule: Schedule.fixed(5000).pipe(
-                  Schedule.intersect(Schedule.recurs(60)), // Up to 5 minutes total
+                  Schedule.both(Schedule.recurs(60)), // Up to 5 minutes total
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `Waiting for dependencies to clear... (attempt ${attempt + 1})`,
@@ -417,7 +416,7 @@ const waitForVpcAvailable = (
     Effect.retry({
       while: (e) => e instanceof VpcPending,
       schedule: Schedule.fixed(2000).pipe(
-        Schedule.intersect(Schedule.recurs(30)), // Max 60 seconds
+        Schedule.both(Schedule.recurs(30)), // Max 60 seconds
         Schedule.tapOutput(([, attempt]) =>
           session
             ? session.note(
@@ -452,7 +451,7 @@ const waitForVpcDeleted = (vpcId: string, session: ScopedPlanStatusSession) =>
     Effect.retry({
       while: (e) => e instanceof VpcStillExists,
       schedule: Schedule.fixed(2000).pipe(
-        Schedule.intersect(Schedule.recurs(15)), // Max 30 seconds
+        Schedule.both(Schedule.recurs(15)), // Max 30 seconds
         Schedule.tapOutput(([, attempt]) =>
           session.note(`Waiting for VPC deletion... (${(attempt + 1) * 2}s)`),
         ),

@@ -64,9 +64,7 @@ Given a ${pattern} and optional ${path} and ${include}:
     Command.stdout("pipe"),
     Command.stderr("pipe"),
     exec,
-    Effect.catchAll(() =>
-      Effect.succeed({ stdout: "", stderr: "", exitCode: 1 }),
-    ),
+    Effect.catch(() => Effect.succeed({ stdout: "", stderr: "", exitCode: 1 })),
   );
 
   if (exitCode === 1) {
@@ -96,7 +94,7 @@ Given a ${pattern} and optional ${path} and ${include}:
 
     const stats = yield* fs
       .stat(filePath)
-      .pipe(Effect.catchAll(() => Effect.succeed(null)));
+      .pipe(Effect.catch(() => Effect.succeed(null)));
     if (!stats) continue;
 
     const modTime = stats.mtime.pipe(Option.getOrUndefined);

@@ -1,44 +1,37 @@
-import * as Effect from "effect/Effect";
-
 import * as Lambda from "distilled-aws/lambda";
-import { declare, type Capability, type On } from "../../Capability.ts";
-import { toEnvKey } from "../../Env.ts";
-import { Function } from "./Function.ts";
+import * as Effect from "effect/Effect";
+import * as Binding from "../../Binding.ts";
+import * as Output from "../../Output/index.ts";
+import type { Function } from "./Function.ts";
+import * as LambdaModule from "./index.ts";
 
-export interface InvokeFunction<Resource = unknown> extends Capability<
-  "AWS.Lambda.InvokeFunction",
-  Resource
+export interface InvokeRequest extends Omit<
+  Lambda.InvocationRequest,
+  "FunctionName"
 > {}
 
-export const InvokeFunction = Binding("AWS.Lambda.InvokeFunction")<
-  <F extends Function>(func: F) => InvokeFunction<On<F>>
->();
+export const InvokeFunction = Binding.make(
+  "AWS.Lambda.InvokeFunction",
+  <F extends Function>(func: F) =>
+    Binding.fn(func, function* (request?: InvokeRequest) {
+      return yield* Lambda.invoke({
+        ...request,
+        FunctionName: yield* func.functionArn(),
+      });
+    }),
+);
 
-export const invokeFunction = Effect.fnUntraced(function* <F extends Function>(
-  func: F,
-  input: any,
-) {
-  const functionArn = process.env[`${func.id}-functionArn`]!;
-  yield* declare<InvokeFunction<F>>();
-  return yield* Lambda.invoke({
-    FunctionName: functionArn,
-    InvocationType: "RequestResponse",
-    Payload: JSON.stringify(input),
-  });
-});
-
-export const invokeFunctionFromLambda = InvokeFunction.provider.succeed({
-  attach: ({ source: func }) => ({
-    env: {
-      [toEnvKey(func.id, "FUNCTION_ARN")]: func.attr.functionArn,
-    },
-    policyStatements: [
-      {
-        Sid: "AWS.Lambda.InvokeFunction",
-        Effect: "Allow",
-        Action: ["lambda:InvokeFunction"],
-        Resource: [func.attr.functionArn],
-      },
-    ],
-  }),
-});
+export const InvokeFunctionLambda = Binding.effect(
+  [LambdaModule.Function, InvokeFunction],
+  (caller, target) =>
+    Effect.succeed({
+      policyStatements: [
+        {
+          Sid: "InvokeFunction",
+          Effect: "Allow",
+          Action: ["lambda:InvokeFunction"],
+          Resource: [Output.interpolate`${target.functionArn()}`],
+        },
+      ],
+    }),
+);

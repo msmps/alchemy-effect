@@ -126,7 +126,7 @@ export const makeLSPClient = (id: string, proc: Subprocess, root: string) =>
         Effect.gen(function* () {
           const decoded = yield* S.decodeUnknown(PublishDiagnosticsParams)(
             params,
-          ).pipe(Effect.catchAll(() => Effect.succeed(null)));
+          ).pipe(Effect.catch(() => Effect.succeed(null)));
 
           if (!decoded) return;
 
@@ -145,7 +145,7 @@ export const makeLSPClient = (id: string, proc: Subprocess, root: string) =>
             callbacks,
             (cb) => cb(decoded.uri, diagnostics),
             { concurrency: "unbounded" },
-          ).pipe(Effect.catchAll(() => Effect.void));
+          ).pipe(Effect.catch(() => Effect.void));
         }),
     );
 
@@ -222,7 +222,7 @@ export const makeLSPClient = (id: string, proc: Subprocess, root: string) =>
             }),
           ).pipe(
             Effect.timeout(timeout),
-            Effect.catchAll(() => Effect.void),
+            Effect.catch(() => Effect.void),
           );
 
           // Return diagnostics for this file
@@ -252,7 +252,7 @@ export const makeLSPClient = (id: string, proc: Subprocess, root: string) =>
       shutdown: Effect.gen(function* () {
         yield* rpc
           .request("shutdown", null)
-          .pipe(Effect.catchAll(() => Effect.void));
+          .pipe(Effect.catch(() => Effect.void));
         yield* rpc.notify("exit", null);
         yield* rpc.shutdown;
       }),

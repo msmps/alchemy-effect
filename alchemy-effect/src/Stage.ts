@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import { ref } from "./Ref.ts";
 import type { Stack, StackName, StackRefBuilders, StackRefs } from "./Stack.ts";
 
-import * as Context from "effect/Context";
+import * as ServiceMap from "effect/ServiceMap";
 
 export interface StageConfig {
   /**
@@ -20,7 +20,7 @@ export interface StageConfig {
   adopt?: boolean;
 }
 
-export class Stage extends Context.Tag("Stage")<Stage, string>() {}
+export class Stage extends ServiceMap.Service<Stage, string>()("Stage") {}
 
 export type Stages<Req = never, Err = never> = {
   config: (stage: string) => StageConfig | Effect.Effect<StageConfig, Err, Req>;

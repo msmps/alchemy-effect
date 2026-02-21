@@ -1,7 +1,7 @@
-import * as Context from "effect/Context";
+import type { Yieldable } from "effect/Effect";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { YieldWrap } from "effect/Utils";
+import * as ServiceMap from "effect/ServiceMap";
 import type { ResourceClass, ResourceLike } from "./Resource.ts";
 
 export type BindingFn = (
@@ -40,7 +40,7 @@ export declare namespace Binding {
 export const fn: {
   <
     R extends ResourceLike,
-    Eff extends YieldWrap<Effect.Effect<any, any, any>>,
+    Eff extends Yieldable<any, any, any, any>,
     AEff,
     Args extends Array<any>,
   >(
@@ -51,7 +51,7 @@ export const fn: {
       AEff,
       [Eff] extends [never]
         ? never
-        : [Eff] extends [YieldWrap<Effect.Effect<infer _A, infer E, infer _R>>]
+        : [Eff] extends [Yieldable<any, infer _A, infer E, infer _R>]
           ? E
           : never,
       // Requirements of the underlying Effect are hoisted to the policy
@@ -61,7 +61,7 @@ export const fn: {
     // hoist requirementes to the outer effect:
     [Eff] extends [never]
       ? never
-      : [Eff] extends [YieldWrap<Effect.Effect<infer _A, infer _E, infer R>>]
+      : [Eff] extends [Yieldable<any, infer _A, infer _E, infer R>]
         ? R
         : never
   >;
@@ -93,7 +93,7 @@ export const make = <Tag extends string, Fn extends BindingFn>(
       tag,
       fn,
       from<B extends Binding, R extends ResourceClass>(this: B, resource: R) {
-        return BindingTag(resource, this);
+        return BindingService(resource, this);
       },
     },
   ) as any;
@@ -108,10 +108,13 @@ export type BindingPlanFn<R extends ResourceClass, B extends BindingLike> = (
 export const effect = <R extends ResourceClass, B extends BindingLike>(
   [resource, binding]: [R, B],
   impl: NoInfer<BindingPlanFn<R, B>>,
-): Layer.Layer<[R, B]> => Layer.succeed(BindingTag(resource, binding), impl);
+): Layer.Layer<[R, B]> =>
+  Layer.succeed(BindingService(resource, binding), impl);
 
-export const BindingTag = <R extends ResourceClass, B extends Binding>(
+export const BindingService = <R extends ResourceClass, B extends Binding>(
   resource: ResourceClass,
   binding: B,
 ) =>
-  Context.Tag(`${resource.type}:${binding.tag}`)<[R, B], BindingPlanFn<R, B>>();
+  ServiceMap.Service<[R, B], BindingPlanFn<R, B>>()(
+    `${resource.type}:${binding.tag}`,
+  );

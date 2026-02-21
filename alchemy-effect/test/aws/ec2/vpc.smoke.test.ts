@@ -29,12 +29,13 @@ import { test } from "@/Test/Vitest";
 import { expect } from "@effect/vitest";
 import * as EC2 from "distilled-aws/ec2";
 import * as ec2 from "distilled-aws/ec2";
-import { Data, LogLevel, Schedule } from "effect";
+import { Data, Schedule } from "effect";
 import * as Effect from "effect/Effect";
-import * as Logger from "effect/Logger";
+import { MinimumLogLevel } from "effect/References";
 
-const logLevel = Logger.withMinimumLogLevel(
-  process.env.DEBUG ? LogLevel.Debug : LogLevel.Info,
+const logLevel = Effect.provideService(
+  MinimumLogLevel,
+  process.env.DEBUG ? "Debug" : "Info",
 );
 
 const apply = (<const Resources extends (AnyService | AnyResource)[] = never>(
@@ -1910,9 +1911,7 @@ const assertVpcTags = Effect.fn(function* (
     Effect.tapError(Effect.log),
     Effect.retry({
       while: (e) => e._tag === "TagsNotPropagated",
-      schedule: Schedule.fixed(1000).pipe(
-        Schedule.intersect(Schedule.recurs(10)),
-      ),
+      schedule: Schedule.fixed(1000).pipe(Schedule.both(Schedule.recurs(10))),
     }),
   );
 });

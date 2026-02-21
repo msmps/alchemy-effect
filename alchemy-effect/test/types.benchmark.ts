@@ -3,7 +3,7 @@ import * as Alchemy from "@/index";
 import * as DynamoDB from "@/aws/dynamodb";
 import * as Lambda from "@/aws/lambda";
 import * as SQS from "@/aws/sqs";
-import { $, type, Policy } from "@/index";
+import { $, Policy, type } from "@/index";
 import { bench } from "@ark/attest";
 import { FetchHttpClient } from "@effect/platform";
 import { NodeContext } from "@effect/platform-node";
@@ -34,7 +34,7 @@ bench("Lambda.serve with a SQS.Queue binding", () => {
   class Api extends Lambda.serve("Api", {
     fetch: Effect.fn(function* (event) {
       yield* SQS.sendMessage(Queue, "hello").pipe(
-        Effect.catchAll(() => Effect.void),
+        Effect.catch(() => Effect.void),
       );
       return {
         body: JSON.stringify({ message: "Hello, world!" }),
@@ -65,7 +65,7 @@ bench("Lambda.serve with a DynamoDB.Table binding", () => {
           id: "1",
           name: "hello",
         },
-      }).pipe(Effect.catchAll(() => Effect.void));
+      }).pipe(Effect.catch(() => Effect.void));
       return {
         body: JSON.stringify(item?.Item),
       };
@@ -105,7 +105,7 @@ bench("plan apply a Lambda.serve with a DynamoDB.Table binding", () => {
           id: "1",
           name: "hello",
         },
-      }).pipe(Effect.catchAll(() => Effect.void));
+      }).pipe(Effect.catch(() => Effect.void));
       return {
         body: JSON.stringify(item?.Item),
       };
@@ -178,7 +178,7 @@ class Api extends Lambda.serve("Api", {
         id: "1",
         name: "hello",
       },
-    }).pipe(Effect.catchAll(() => Effect.void));
+    }).pipe(Effect.catch(() => Effect.void));
     return {
       body: JSON.stringify(item?.Item),
     };

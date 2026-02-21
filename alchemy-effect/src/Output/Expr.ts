@@ -1,5 +1,5 @@
+import type { Yieldable } from "effect/Effect";
 import * as Effect from "effect/Effect";
-import type { YieldWrap } from "effect/Utils";
 import type { ResourceLike } from "../Resource.ts";
 import type { Output, Value } from "./Output.ts";
 
@@ -74,6 +74,7 @@ const proxy = (self: any): any => {
   return proxy;
 };
 
+// @ts-expect-error
 export abstract class BaseExpr<
   A = any,
   Src extends ResourceLike = any,
@@ -84,8 +85,9 @@ export abstract class BaseExpr<
   declare readonly req: Req;
   // we use a kind tag instead of instanceof to protect ourselves from duplicate alchemy-effect module imports
   constructor() {}
+
   [Symbol.iterator](): Iterator<
-    YieldWrap<Effect.Effect<void, never, this>>,
+    Yieldable<any, void, never, this>,
     Value<A, Src>,
     void
   > {

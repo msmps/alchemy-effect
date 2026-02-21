@@ -231,7 +231,7 @@ export const QueueEventSourceProvider = () =>
                 UUID: uuid,
               })
               // TODO(sam): handle errors properly
-              .pipe(Effect.catchAll(() => Effect.void));
+              .pipe(Effect.catch(() => Effect.void));
           }
         }),
       };
@@ -262,7 +262,7 @@ export const consumeQueue =
               return {
                 ...record,
                 body: yield* S.validate(queue.props.schema)(record.body).pipe(
-                  Effect.catchAll(() => Effect.void),
+                  Effect.catch(() => Effect.void),
                 ),
               };
             }),

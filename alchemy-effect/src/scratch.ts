@@ -1,8 +1,8 @@
 import * as s3 from "distilled-aws/s3";
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as S from "effect/Schema";
+import * as ServiceMap from "effect/ServiceMap";
 import * as Stream from "effect/Stream";
 
 import * as Lambda from "./AWS/Lambda/index.ts";
@@ -127,12 +127,12 @@ export const EventSourceMapping = Resource<{
   ): Effect.Effect<EventSourceMapping<Id, Props>>;
 }>("AWS.Lambda.EventSourceMapping");
 
-export class JobsService extends Context.Tag("Jobs")<
+export class JobsService extends ServiceMap.Service<
   JobsService,
   {
     get(key: string): Effect.Effect<string>;
   }
->() {}
+>()("Jobs") {}
 
 const JobServiceAWS = Construct.effect(
   JobsService,
@@ -153,7 +153,7 @@ const JobServiceAWS = Construct.effect(
           Effect.flatMap(
             (output) =>
               output.Body?.pipe(Stream.decodeText(), Stream.mkString) ??
-              Effect.dieMessage("Invalid job body"),
+              Effect.die("Invalid job body"),
           ),
           Effect.orDie,
         ),
@@ -178,7 +178,3 @@ const JobFunction = Lambda.Function(
     return (event: any) => get(event.key);
   }),
 ).pipe(Layer.provide(JobServiceAWS));
-
-export default defineStack("stack", {
-  resources: [JobFunction],
-});

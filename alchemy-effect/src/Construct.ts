@@ -1,6 +1,6 @@
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type { Pipeable } from "effect/Pipeable";
+import * as ServiceMap from "effect/ServiceMap";
 import * as Types from "effect/Types";
 
 export const ConstructTypeId = "alchemy/Construct";
@@ -69,12 +69,12 @@ export declare namespace Construct {
 
 export const effect: {
   <I, S>(
-    tag: Context.Tag<I, S>,
+    tag: ServiceMap.Service<I, S>,
   ): <E, R>(
     effect: Effect.Effect<Types.NoInfer<S>, E, R>,
   ) => Construct<I, E, R>;
   <I, S, E, R>(
-    tag: Context.Tag<I, S>,
+    tag: ServiceMap.Service<I, S>,
     effect: Effect.Effect<Types.NoInfer<S>, E, R>,
   ): Construct<I, E, R>;
 } = undefined!;

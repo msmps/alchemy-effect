@@ -89,9 +89,7 @@ export const findFiles = Effect.fn("findFiles")(function* (input: {
   glob?: string[];
 }) {
   const fs = yield* FileSystem.FileSystem;
-  const stat = yield* fs
-    .stat(input.cwd)
-    .pipe(Effect.catchAll(() => Effect.void));
+  const stat = yield* fs.stat(input.cwd).pipe(Effect.catch(() => Effect.void));
   if (!stat) {
     return yield* Effect.fail(`No such file or directory: '${input.cwd}'`);
   }
@@ -236,9 +234,7 @@ export const search = Effect.fn("search")(function* (input: {
   const result = yield* Command.make(args[0], ...args.slice(1)).pipe(
     Command.runInShell(true),
     exec,
-    Effect.catchAll(() =>
-      Effect.succeed({ exitCode: 0, stdout: "", stderr: "" }),
-    ),
+    Effect.catch(() => Effect.succeed({ exitCode: 0, stdout: "", stderr: "" })),
   );
 
   // const result = await $`${{ raw: command }}`.cwd(input.cwd).quiet().nothrow();

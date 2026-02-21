@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
 import type { ScopedPlanStatusSession } from "../../Cli.ts";
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import type { RouteTableId } from "./RouteTable.ts";
 import type { SubnetId } from "./Subnet.ts";
@@ -13,7 +13,7 @@ export const RouteTableAssociation = Resource<{
   <const ID extends string, const Props extends RouteTableAssociationProps>(
     id: ID,
     props: Props,
-  ): RouteTableAssociation<ID, Props>;
+  ): Effect.Effect<RouteTableAssociation<ID, Props>>;
 }>("AWS.EC2.RouteTableAssociation");
 
 export interface RouteTableAssociation<
@@ -23,8 +23,7 @@ export interface RouteTableAssociation<
   "AWS.EC2.RouteTableAssociation",
   ID,
   Props,
-  RouteTableAssociationAttrs<Input.Resolve<Props>>,
-  RouteTableAssociation
+  RouteTableAssociationAttrs<Input.Resolve<Props>>
 > {}
 
 export type RouteTableAssociationId<ID extends string = string> =
@@ -273,7 +272,7 @@ const waitForAssociationState = (
     {
       schedule: Schedule.fixed(1000).pipe(
         // Check every second
-        Schedule.intersect(Schedule.recurs(30)), // Max 30 seconds
+        Schedule.both(Schedule.recurs(30)), // Max 30 seconds
         Schedule.tapOutput(([, attempt]) =>
           session
             ? session.note(

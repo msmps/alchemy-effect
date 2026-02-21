@@ -1,11 +1,11 @@
-import type { HttpClient } from "@effect/platform/HttpClient";
 import type { Credentials } from "distilled-aws/Credentials";
 import { Region } from "distilled-aws/Region";
 import * as s3 from "distilled-aws/s3";
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as ServiceMap from "effect/ServiceMap";
+import type { HttpClient } from "effect/unstable/http/HttpClient";
 
 import { Account } from "./Account.ts";
 import { ASSETS_BUCKET_TAG, getAssetsBucketName } from "./Bootstrap.ts";
@@ -30,7 +30,7 @@ export type AssetsError =
  */
 export type AssetsRequirements = Region | Credentials | HttpClient;
 
-export class Assets extends Context.Tag("AWS::Assets")<
+export class Assets extends ServiceMap.Service<
   Assets,
   {
     /**
@@ -61,7 +61,7 @@ export class Assets extends Context.Tag("AWS::Assets")<
       hash: string,
     ) => Effect.Effect<boolean, AssetsError, AssetsRequirements>;
   }
->() {}
+>()("AWS::Assets") {}
 
 /**
  * S3 key prefix for Lambda function code assets.
@@ -86,7 +86,7 @@ export const lookupAssetsBucket = Effect.gen(function* () {
   const exists = yield* s3.headBucket({ Bucket: bucketName }).pipe(
     Effect.map(() => true),
     Effect.catchTag("NotFound", () => Effect.succeed(false)),
-    Effect.catchAll(() => Effect.succeed(false)),
+    Effect.catch(() => Effect.succeed(false)),
   );
 
   if (!exists) {
@@ -199,7 +199,7 @@ export const assetsLayer = Layer.effect(
  * Returns Layer.empty if the bucket is not found.
  */
 export const AssetsProvider = () =>
-  Layer.unwrapEffect(
+  Layer.unwrap(
     Effect.gen(function* () {
       const maybeBucket = yield* lookupAssetsBucket;
 

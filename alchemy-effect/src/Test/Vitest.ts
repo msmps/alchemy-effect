@@ -1,17 +1,18 @@
-import * as NodePath from "node:path";
-
-import { FetchHttpClient, FileSystem, HttpClient } from "@effect/platform";
-import { NodeContext } from "@effect/platform-node";
-import * as Path from "@effect/platform/Path";
-import * as PlatformConfigProvider from "@effect/platform/PlatformConfigProvider";
+import { NodeServices } from "@effect/platform-node";
 import { expect, it } from "@effect/vitest";
 import type * as AWS from "distilled-aws";
-import { ConfigProvider, LogLevel } from "effect";
+import { Logger } from "effect";
 import * as Config from "effect/Config";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
+import * as Path from "effect/Path";
+import { MinimumLogLevel } from "effect/References";
 import * as Scope from "effect/Scope";
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+import * as HttpClient from "effect/unstable/http/HttpClient";
+import * as NodePath from "node:path";
 
 import * as Credentials from "../AWS/Credentials.ts";
 import * as Region from "../AWS/Region.ts";
@@ -84,9 +85,9 @@ export function test(
   const [options = {}, testCase] =
     args.length === 1 ? [undefined, args[0]] : args;
   const platform = Layer.mergeAll(
-    NodeContext.layer,
+    NodeServices.layer,
     FetchHttpClient.layer,
-    Logger.pretty,
+    Logger.layer([Logger.consolePretty()]),
   );
 
   const aws = Layer.mergeAll(
@@ -101,16 +102,18 @@ export function test(
         App,
         Effect.gen(function* () {
           const AWS_PROFILE = yield* Config.string("AWS_PROFILE").pipe(
-            Config.withDefault("default"),
+            Config.withDefault(() => "default"),
           );
 
           const LOCAL = yield* Config.boolean("LOCAL").pipe(
-            Config.withDefault(false),
+            Config.withDefault(() => false),
           );
 
           const LOCALSTACK_ENDPOINT = yield* Config.string(
             "LOCALSTACK_ENDPOINT",
-          ).pipe(Config.withDefault("http://localhost.localstack.cloud:4566"));
+          ).pipe(
+            Config.withDefault(() => "http://localhost.localstack.cloud:4566"),
+          );
 
           // Include test file path to prevent state collisions between tests with the same name
           // Use the relative path from the test directory (e.g., "aws/s3/bucket.provider.test")
@@ -155,20 +158,24 @@ export function test(
   return it.scopedLive(
     name,
     () =>
+      // @ts-expect-error
       Effect.gen(function* () {
         const configProvider = ConfigProvider.orElse(
-          yield* PlatformConfigProvider.fromDotEnv(".env"),
-          ConfigProvider.fromEnv,
+          yield* ConfigProvider.fromDotEnv({ path: ".env" }),
+          ConfigProvider.fromEnv(),
         );
-        return yield* testCase.pipe(Effect.withConfigProvider(configProvider));
+        return yield* testCase.pipe(
+          Effect.provideService(ConfigProvider.ConfigProvider, configProvider),
+        );
       }).pipe(
         Effect.provide(
           Layer.provideMerge(aws, Layer.provideMerge(alchemy, platform)),
         ),
-        Logger.withMinimumLogLevel(
-          process.env.DEBUG ? LogLevel.Debug : LogLevel.Info,
+        Effect.provideService(
+          MinimumLogLevel,
+          process.env.DEBUG ? "Debug" : "Info",
         ),
-        Effect.provide(NodeContext.layer),
+        Effect.provide(NodeServices.layer),
       ),
     options.timeout,
   );

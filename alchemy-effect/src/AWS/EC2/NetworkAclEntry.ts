@@ -2,7 +2,7 @@ import type * as EC2 from "distilled-aws/ec2";
 import * as ec2 from "distilled-aws/ec2";
 import * as Effect from "effect/Effect";
 
-import type { Input } from "../../internal/Input.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import type { NetworkAclId } from "./NetworkAcl.ts";
 
@@ -10,7 +10,7 @@ export const NetworkAclEntry = Resource<{
   <const ID extends string, const Props extends NetworkAclEntryProps>(
     id: ID,
     props: Props,
-  ): NetworkAclEntry<ID, Props>;
+  ): Effect.Effect<NetworkAclEntry<ID, Props>>;
 }>("AWS.EC2.NetworkAclEntry");
 
 export interface NetworkAclEntry<
@@ -20,8 +20,7 @@ export interface NetworkAclEntry<
   "AWS.EC2.NetworkAclEntry",
   ID,
   Props,
-  NetworkAclEntryAttrs<Input.Resolve<Props>>,
-  NetworkAclEntry
+  NetworkAclEntryAttrs<Input.Resolve<Props>>
 > {}
 
 export interface NetworkAclEntryProps {

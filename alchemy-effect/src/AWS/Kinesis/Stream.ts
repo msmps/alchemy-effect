@@ -33,7 +33,7 @@ export const Stream = Resource<{
   <const ID extends string, const Props extends StreamProps>(
     id: ID,
     props: Props,
-  ): Stream<ID, Props>;
+  ): Effect.Effect<Stream<ID, Props>>;
 }>("AWS.Kinesis.Stream");
 
 export interface Stream<
@@ -43,8 +43,7 @@ export interface Stream<
   "AWS.Kinesis.Stream",
   ID,
   Props,
-  StreamAttrs<Props>,
-  Stream
+  StreamAttrs<Props>
 > {}
 
 export type StreamAttrs<Props extends StreamProps> = {
@@ -408,7 +407,7 @@ const waitForStreamActive = (streamName: string) =>
         // During stream creation, AWS may return incomplete responses that fail parsing
         e._tag === "ParseError",
       schedule: Schedule.exponential(500).pipe(
-        Schedule.intersect(Schedule.recurs(60)),
+        Schedule.both(Schedule.recurs(60)),
       ),
     }),
   );
@@ -426,7 +425,7 @@ const waitForStreamDeleted = (streamName: string) =>
         // During stream deletion, AWS may return incomplete responses that fail parsing
         e._tag === "ParseError",
       schedule: Schedule.exponential(500).pipe(
-        Schedule.intersect(Schedule.recurs(60)),
+        Schedule.both(Schedule.recurs(60)),
       ),
     }),
     Effect.catchTag("ResourceNotFoundException", () => Effect.void),

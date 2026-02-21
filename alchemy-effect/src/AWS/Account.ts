@@ -1,9 +1,9 @@
 import * as Credentials from "distilled-aws/Credentials";
 import * as STS from "distilled-aws/sts";
-import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as ServiceMap from "effect/ServiceMap";
 import { App } from "../App.ts";
 
 export class FailedToGetAccount extends Data.TaggedError(
@@ -15,10 +15,9 @@ export class FailedToGetAccount extends Data.TaggedError(
 
 export type AccountID = string;
 
-export class Account extends Context.Tag("AWS::AccountID")<
-  Account,
-  AccountID
->() {}
+export class Account extends ServiceMap.Service<Account, AccountID>()(
+  "AWS::AccountID",
+) {}
 
 export class AWSStageConfigAccountMissing extends Data.TaggedError(
   "AWSStageConfigAccountMissing",
@@ -43,12 +42,13 @@ export const fromStageConfig = () =>
         }
       }
       const identity = yield* STS.getCallerIdentity({}).pipe(
-        Effect.catchAll(
-          (err) =>
+        Effect.catch((err) =>
+          Effect.fail(
             new FailedToGetAccount({
               message: "Failed to look up account ID",
               cause: err,
             }),
+          ),
         ),
       );
       return identity.Account!;

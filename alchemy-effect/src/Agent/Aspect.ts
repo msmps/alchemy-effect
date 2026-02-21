@@ -1,7 +1,7 @@
-import * as Context from "effect/Context";
+import type { Yieldable } from "effect/Effect";
 import * as Effect from "effect/Effect";
 import * as S from "effect/Schema";
-import type { YieldWrap } from "effect/Utils";
+import * as ServiceMap from "effect/ServiceMap";
 import { TuiPlugin } from "../Tui/plugin.ts";
 import type { Class, IsAny } from "../Util/index.ts";
 import { ContextPlugin } from "./ContextPlugin.ts";
@@ -22,12 +22,12 @@ export const isAspect = (a: any): a is Aspect => {
   );
 };
 
-export class AspectConfig extends Context.Tag("AspectConfig")<
+export class AspectConfig extends ServiceMap.Service<
   AspectConfig,
   {
     cwd: string;
   }
->() {}
+>()("AspectConfig") {}
 
 export type AspectClass<Fn extends AspectType<any>> = Fn & {
   kind: "aspect";
@@ -136,7 +136,7 @@ type AspectFunction<Props = any> = <Name extends string>(
   template: TemplateStringsArray,
   ...references: References
 ) =>
-  | (<Eff extends YieldWrap<Effect.Effect<any, any, any>>>(
+  | (<Eff extends Yieldable<any, any, any, any>>(
       handler: (
         input: Parameters.Of<References>,
       ) => Generator<Eff, NoInfer<Result.Of<References>>, never>,
@@ -152,16 +152,12 @@ type AspectFunction<Props = any> = <Name extends string>(
         NoInfer<Result.Of<References>>,
         [Eff] extends [never]
           ? never
-          : [Eff] extends [
-                YieldWrap<Effect.Effect<infer _A, infer E, infer _R>>,
-              ]
+          : [Eff] extends [Yieldable<any, infer _A, infer E, infer _R>]
             ? E
             : never,
         [Eff] extends [never]
           ? never
-          : [Eff] extends [
-                YieldWrap<Effect.Effect<infer _A, infer _E, infer R>>,
-              ]
+          : [Eff] extends [Yieldable<any, infer _A, infer _E, infer R>]
             ? R
             : never
       >

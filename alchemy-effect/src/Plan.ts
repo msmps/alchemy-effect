@@ -1,7 +1,7 @@
-import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as ServiceMap from "effect/ServiceMap";
 import { omit } from "effect/Struct";
 import type { Instance } from ".//Util/instance.ts";
 import { asEffect } from ".//Util/types.ts";
@@ -301,7 +301,7 @@ export const plan = <const Resources extends (Service | Resource)[]>(
     type ResolveEffect<T> = Effect.Effect<T, ResolveErr, ResolveReq>;
     type ResolveErr = StateStoreError;
     type ResolveReq =
-      | Context.TagClass<
+      | ServiceMap.ServiceClass<
           Provider<Resource<string, string, any, any>>,
           string,
           ProviderService<Resource<string, string, any, any>>

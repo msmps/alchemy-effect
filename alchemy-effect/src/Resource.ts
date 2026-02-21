@@ -15,7 +15,7 @@ export type ResourceClass<Fn extends ResourceClassFn = ResourceClassFn> = Fn & {
 export declare namespace ResourceClass {
   export type Type<Fn extends ResourceClassFn> = Instance<Fn>["type"];
   export type Instance<Fn extends ResourceClassFn> = Extract<
-    Effect.Effect.Success<ReturnType<Fn>>,
+    Effect.Success<ReturnType<Fn>>,
     ResourceLike
   >;
 }

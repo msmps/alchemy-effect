@@ -35,7 +35,7 @@ const findEventSourceMapping = (functionName: string) =>
     Effect.retry({
       while: (e) => e._tag === "EventSourceMappingNotFound",
       schedule: Schedule.exponential(500).pipe(
-        Schedule.intersect(Schedule.recurs(10)),
+        Schedule.both(Schedule.recurs(10)),
       ),
     }),
   );

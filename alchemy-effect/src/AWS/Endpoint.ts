@@ -1,12 +1,12 @@
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as ServiceMap from "effect/ServiceMap";
 import { App } from "../App.ts";
 
-export class Endpoint extends Context.Tag("AWS::Endpoint")<
+export class Endpoint extends ServiceMap.Service<
   Endpoint,
   EndpointID | undefined
->() {}
+>()("AWS::Endpoint") {}
 
 export type EndpointID = string;
 

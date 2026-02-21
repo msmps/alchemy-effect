@@ -1,45 +1,38 @@
 import * as sqs from "distilled-aws/sqs";
 import * as Effect from "effect/Effect";
-import type { Capability } from "../../Capability.ts";
-import { declare, type To } from "../../Capability.ts";
-import { toEnvKey } from "../../Env.ts";
-import { Queue } from "./Queue.ts";
+import * as Binding from "../../Binding.ts";
+import * as Output from "../../Output/index.ts";
+import * as Lambda from "../Lambda/index.ts";
+import type { Queue } from "./Queue.ts";
 
-export interface SendMessage<Q = Queue> extends Capability<
+export interface SendMessageRequest<Q extends Queue>
+  extends Omit<sqs.SendMessageRequest, "QueueUrl" | "MessageBody"> {
+  MessageBody: Q["props"]["schema"]["Type"];
+}
+
+export const SendMessage = Binding.make(
   "AWS.SQS.SendMessage",
-  Q
-> {}
+  <Q extends Queue>(queue: Q) =>
+    Binding.fn(queue, function* (request: SendMessageRequest<Q>) {
+      return yield* sqs.sendMessage({
+        ...request,
+        QueueUrl: yield* queue.queueUrl(),
+        MessageBody: JSON.stringify(request.MessageBody),
+      });
+    }),
+);
 
-export const SendMessage = Binding("AWS.SQS.SendMessage")<
-  <Q extends Queue>(queue: Q) => SendMessage<To<Q>>
->();
-
-export const sendMessage = Effect.fnUntraced(function* <Q extends Queue>(
-  queue: Q,
-  message: Q["props"]["schema"]["Type"],
-) {
-  yield* declare<SendMessage<To<Q>>>();
-  const url = process.env[toEnvKey(queue.id, "QUEUE_URL")]!;
-  return yield* sqs.sendMessage({
-    QueueUrl: url,
-    MessageBody: JSON.stringify(message),
-  });
-});
-
-export const sendMessageFromLambdaFunction = () =>
-  SendMessage.provider.succeed({
-    attach: ({ source: queue }) => ({
-      env: {
-        // ask what attribute is needed to interact? e.g. is it the Queue ARN or the Queue URL?
-        [toEnvKey(queue.id, "QUEUE_URL")]: queue.attr.queueUrl,
-      },
+export const SendMessageLambda = Binding.effect(
+  [Lambda.Function, SendMessage],
+  (func, queue) =>
+    Effect.succeed({
       policyStatements: [
         {
           Sid: "SendMessage",
           Effect: "Allow",
-          Action: ["sqs:SendMessage"], // <- ask LLM how to generate this
-          Resource: [queue.attr.queueArn],
+          Action: ["sqs:SendMessage"],
+          Resource: [Output.interpolate`${queue.queueArn()}`],
         },
       ],
     }),
-  });
+);

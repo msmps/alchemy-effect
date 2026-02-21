@@ -381,10 +381,10 @@ const assertBucketDeleted = Effect.fn(function* (bucketName: string) {
     Effect.retry({
       while: (e) => e._tag === "BucketStillExists",
       schedule: Schedule.exponential(100).pipe(
-        Schedule.intersect(Schedule.recurs(10)),
+        Schedule.both(Schedule.recurs(10)),
       ),
     }),
     Effect.catchTag("NotFound", () => Effect.void),
-    Effect.catchAll(() => Effect.void),
+    Effect.catch(() => Effect.void),
   );
 });

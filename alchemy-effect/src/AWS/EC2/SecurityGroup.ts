@@ -2,8 +2,8 @@ import * as ec2 from "distilled-aws/ec2";
 import { Region } from "distilled-aws/Region";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { createPhysicalName } from "../../internal/createPhysicalName.ts";
-import type { Input } from "../../internal/Input.ts";
+import { createPhysicalName } from "../../PhysicalName.ts";
+import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList, diffTags } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";
@@ -15,7 +15,7 @@ export const SecurityGroup = Resource<{
   <const ID extends string, const Props extends SecurityGroupProps>(
     id: ID,
     props: Props,
-  ): SecurityGroup<ID, Props>;
+  ): Effect.Effect<SecurityGroup<ID, Props>>;
 }>("AWS.EC2.SecurityGroup");
 
 export interface SecurityGroup<
@@ -25,8 +25,7 @@ export interface SecurityGroup<
   "AWS.EC2.SecurityGroup",
   ID,
   Props,
-  SecurityGroupAttrs<Input.Resolve<Props>>,
-  SecurityGroup
+  SecurityGroupAttrs<Input.Resolve<Props>>
 > {}
 
 export type SecurityGroupId<ID extends string = string> = `sg-${ID}`;
@@ -547,7 +546,7 @@ export const SecurityGroupProvider = () =>
                   );
                 },
                 schedule: Schedule.fixed(5000).pipe(
-                  Schedule.intersect(Schedule.recurs(30)), // Up to ~2.5 minutes
+                  Schedule.both(Schedule.recurs(30)), // Up to ~2.5 minutes
                   Schedule.tapOutput(([, attempt]) =>
                     session.note(
                       `Waiting for dependencies to clear... (attempt ${attempt + 1})`,

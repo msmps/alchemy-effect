@@ -1,89 +1,35 @@
-import * as Effect from "effect/Effect";
-
 import * as S3 from "distilled-aws/s3";
-import { declare, type Capability, type To } from "../../Capability.ts";
-import { toEnvKey } from "../../Env.ts";
-import { Bucket } from "./Bucket.ts";
+import * as Effect from "effect/Effect";
+import * as Binding from "../../Binding.ts";
+import * as Output from "../../Output/index.ts";
+import * as Lambda from "../Lambda/index.ts";
+import type { Bucket } from "./Bucket.ts";
 
-export interface CopyObject<B = Bucket> extends Capability<
+export interface CopyObjectRequest
+  extends Omit<S3.CopyObjectRequest, "Bucket"> {}
+
+export const CopyObject = Binding.make(
   "AWS.S3.CopyObject",
-  B
-> {}
+  <B extends Bucket>(bucket: B) =>
+    Binding.fn(bucket, function* (request: CopyObjectRequest) {
+      return yield* S3.copyObject({
+        ...request,
+        Bucket: yield* bucket.bucketName(),
+      });
+    }),
+);
 
-export const CopyObject =
-  Binding("AWS.S3.CopyObject")<
-    <B extends Bucket>(bucket: B) => CopyObject<To<B>>
-  >();
-
-export interface CopyObjectOptions {
-  /** The key for the destination object */
-  key: string;
-  /**
-   * The source object to copy from.
-   * Format: "bucket-name/key" or "/bucket-name/key"
-   * For versioned objects: "bucket-name/key?versionId=version-id"
-   */
-  copySource: string;
-  contentType?: string;
-  contentEncoding?: string;
-  contentDisposition?: string;
-  cacheControl?: string;
-  metadata?: Record<string, string>;
-  metadataDirective?: "COPY" | "REPLACE";
-  storageClass?:
-    | "STANDARD"
-    | "REDUCED_REDUNDANCY"
-    | "STANDARD_IA"
-    | "ONEZONE_IA"
-    | "INTELLIGENT_TIERING"
-    | "GLACIER"
-    | "DEEP_ARCHIVE"
-    | "GLACIER_IR";
-  serverSideEncryption?: "AES256" | "aws:kms" | "aws:kms:dsse";
-  sseKmsKeyId?: string;
-  tagging?: string;
-  taggingDirective?: "COPY" | "REPLACE";
-}
-
-export const copyObject = Effect.fnUntraced(function* <B extends Bucket>(
-  bucket: B,
-  options: CopyObjectOptions,
-) {
-  yield* declare<CopyObject<To<B>>>();
-  const bucketName = process.env[toEnvKey(bucket.id, "BUCKET_NAME")]!;
-
-  return yield* S3.copyObject({
-    Bucket: bucketName,
-    Key: options.key,
-    CopySource: options.copySource,
-    ContentType: options.contentType,
-    ContentEncoding: options.contentEncoding,
-    ContentDisposition: options.contentDisposition,
-    CacheControl: options.cacheControl,
-    Metadata: options.metadata,
-    MetadataDirective: options.metadataDirective,
-    StorageClass: options.storageClass,
-    ServerSideEncryption: options.serverSideEncryption,
-    SSEKMSKeyId: options.sseKmsKeyId,
-    Tagging: options.tagging,
-    TaggingDirective: options.taggingDirective,
-  });
-});
-
-export const CopyObjectBinding = () =>
-  CopyObject.provider.succeed({
-    attach: ({ source: bucket }) => ({
-      env: {
-        [toEnvKey(bucket.id, "BUCKET_NAME")]: bucket.attr.bucketName,
-        [toEnvKey(bucket.id, "BUCKET_ARN")]: bucket.attr.bucketArn,
-      },
+export const CopyObjectLambda = Binding.effect(
+  [Lambda.Function, CopyObject],
+  (func, bucket) =>
+    Effect.succeed({
       policyStatements: [
         {
           Sid: "CopyObject",
           Effect: "Allow",
           Action: ["s3:PutObject", "s3:GetObject"],
-          Resource: [`${bucket.attr.bucketArn}/*`],
+          Resource: [Output.interpolate`${bucket.bucketArn()}/*`],
         },
       ],
     }),
-  });
+);

@@ -23,7 +23,7 @@ export class EnvironmentVariableNotSet extends Data.TaggedError(
 export const AWS_REGION = Config.string("AWS_REGION");
 
 const tryGetAWSRegion = () =>
-  Config.option(AWS_REGION).pipe(Effect.map(Option.getOrUndefined));
+  Config.option(AWS_REGION).pipe(Config.map(Option.getOrUndefined));
 
 export const fromEnv = () =>
   Layer.effect(
@@ -66,7 +66,7 @@ export const fromStageConfig = () =>
       if (region) {
         return region;
       }
-      return yield* Effect.dieMessage(
+      return yield* Effect.die(
         "No AWS region found in stage config, SSO profile, or environment variable",
       );
     }),

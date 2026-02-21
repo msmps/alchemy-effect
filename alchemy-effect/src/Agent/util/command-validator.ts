@@ -67,7 +67,7 @@ export const commandValidator = Layer.effect(
                 Command.make("realpath", arg).pipe(Command.runInShell(true)),
               ).pipe(
                 Effect.map((x) => x.trim()),
-                Effect.catchAll(() => Effect.void),
+                Effect.catch(() => Effect.void),
               );
 
               if (resolved) {

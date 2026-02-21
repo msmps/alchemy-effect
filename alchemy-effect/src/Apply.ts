@@ -1,6 +1,6 @@
 import { Layer } from "effect";
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as ServiceMap from "effect/ServiceMap";
 import type { Simplify } from "effect/Types";
 import type { Instance } from ".//Util/instance.ts";
 import { asEffect } from ".//Util/types.ts";
@@ -111,7 +111,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
     const upstreamNode = plan.resources[resourceId];
     const upstreamAttr = upstreamNode
       ? yield* apply(upstreamNode)
-      : yield* Effect.dieMessage(`Resource ${resourceId} not found`);
+      : yield* Effect.die(`Resource ${resourceId} not found`);
     return {
       resourceId,
       upstreamAttr,
@@ -127,7 +127,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
   }) {
     const binding = node.binding as AnyBinding & {
       // smuggled property (because it interacts poorly with inference)
-      Tag: Context.Tag<never, BindingProvider>;
+      Tag: ServiceMap.Service<never, BindingProvider>;
     };
     const provider = yield* binding.Tag;
     const resourceId: string = node.binding.capability.resource.id;
@@ -330,7 +330,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
               return node.state.instanceId;
             }
             // this should never happen
-            return yield* Effect.dieMessage(
+            return yield* Effect.die(
               `Instance ID not found for resource '${id}' and action is '${node.action}'`,
             );
           });
@@ -684,7 +684,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
               return attr;
             }
             // @ts-expect-error
-            return yield* Effect.dieMessage(`Unknown action: ${node.action}`);
+            return yield* Effect.die(`Unknown action: ${node.action}`);
           });
 
           // provide the resource-specific context (InstanceId, etc.)

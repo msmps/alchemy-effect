@@ -281,7 +281,7 @@ export const StreamEventSourceProvider = () =>
               .deleteEventSourceMapping({
                 UUID: uuid,
               })
-              .pipe(Effect.catchAll(() => Effect.void));
+              .pipe(Effect.catch(() => Effect.void));
           }
         }),
       };
@@ -328,7 +328,7 @@ export const consumeStream =
 
               const validatedData = yield* S.validate(stream.props.schema)(
                 parsedData,
-              ).pipe(Effect.catchAll(() => Effect.succeed(undefined)));
+              ).pipe(Effect.catch(() => Effect.succeed(undefined)));
 
               return {
                 ...record,

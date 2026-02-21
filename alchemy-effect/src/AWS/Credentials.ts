@@ -21,9 +21,7 @@ export const fromStageConfig = () =>
       } else if (app.config.aws?.credentials) {
         return fromAwsCredentialIdentity(app.config.aws.credentials);
       }
-      return yield* Effect.dieMessage(
-        "No AWS credentials found in stage config",
-      );
+      return yield* Effect.die("No AWS credentials found in stage config");
     }),
   );
 
