@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Binding from "../../Binding.ts";
 import * as Output from "../../Output/index.ts";
 import { Runtime } from "../../Runtime.ts";
+import * as AWS from "../index.ts";
 import * as Lambda from "../Lambda/index.ts";
 import type { Queue } from "./Queue.ts";
 
@@ -14,14 +15,14 @@ export const SendMessageBatch = Effect.fn(function* <Q extends Queue>(
 ) {
   yield* bindSendMessageBatch(queue);
   const QueueUrl = yield* queue.queueUrl();
-  return Effect.fn("AWS.SQS.SendMessageBatch")(function* (
-    request: SendMessageBatchRequest,
-  ) {
-    return yield* sqs.sendMessageBatch({
-      ...request,
-      QueueUrl: yield* QueueUrl,
-    });
-  });
+  return yield* AWS.withContext(
+    Effect.fn(function* (request: SendMessageBatchRequest) {
+      return yield* sqs.sendMessageBatch({
+        ...request,
+        QueueUrl: yield* QueueUrl,
+      });
+    }),
+  );
 });
 
 export const bindSendMessageBatch = Binding.fn<SendMessageBatchBinding>(

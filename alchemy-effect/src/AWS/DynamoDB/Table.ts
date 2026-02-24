@@ -1,20 +1,15 @@
 import type * as lambda from "aws-lambda";
 
-import type { Credentials } from "distilled-aws/Credentials";
 import type * as DynamoDB from "distilled-aws/dynamodb";
 import type { TimeToLiveSpecification } from "distilled-aws/dynamodb";
 import * as dynamodb from "distilled-aws/dynamodb";
-import type { Region } from "distilled-aws/Region";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as S from "effect/Schema";
-import type { HttpClient } from "effect/unstable/http/HttpClient";
 
 import { App } from "../../App.ts";
 import type { Input } from "../../Input.ts";
 import { createPhysicalName } from "../../PhysicalName.ts";
-import type { Provider } from "../../Provider.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, hasTags } from "../../Tags.ts";
 import type { type } from "../../Util/index.ts";
@@ -126,11 +121,7 @@ export declare namespace Table {
 }
 
 // we add an explict type to simplify the Layer type errors because the Table interface has a lot of type args
-export const TableProvider = (): Layer.Layer<
-  Provider<AnyTable>,
-  never,
-  App | Region | Credentials | HttpClient
-> =>
+export const TableProvider = () =>
   Table.provider.effect(
     Effect.gen(function* () {
       const app = yield* App;

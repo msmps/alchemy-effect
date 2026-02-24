@@ -52,7 +52,7 @@ export interface Output<A = any, Src extends ResourceLike = any, Req = any> {
     fn: (value: A) => Effect.Effect<B, never, Req2>,
   ): Output.Of<B, Src, Req | Req2>;
   [Symbol.iterator](): Iterator<
-    Yieldable<any, void, never, this>,
+    Yieldable<any, void, never, never>,
     Value<A, Src>,
     void
   >;

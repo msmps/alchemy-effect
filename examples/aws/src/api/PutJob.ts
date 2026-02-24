@@ -1,7 +1,8 @@
 import * as S from "alchemy-effect/Schema";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 
-import { SLayer, Server } from "alchemy-effect";
+import { Server } from "alchemy-effect";
 import { Job } from "../Job.ts";
 import { JobStorage } from "../JobStorage.ts";
 import { InvalidJobId } from "./InvalidJobId.ts";
@@ -20,7 +21,7 @@ export class PutJob extends Server.Operation("PutJob", {
   errors: [InvalidJobId],
 }) {}
 
-export const putJob = SLayer.effect(
+export const putJob = Layer.effect(
   PutJob,
   Effect.gen(function* () {
     const jobStorage = yield* JobStorage;

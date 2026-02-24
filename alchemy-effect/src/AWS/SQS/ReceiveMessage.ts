@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Binding from "../../Binding.ts";
 import * as Output from "../../Output/index.ts";
 import { Runtime } from "../../Runtime.ts";
+import * as AWS from "../index.ts";
 import * as Lambda from "../Lambda/index.ts";
 import type { Queue } from "./Queue.ts";
 
@@ -12,14 +13,14 @@ export interface ReceiveMessageRequest
 export const ReceiveMessage = Effect.fn(function* <Q extends Queue>(queue: Q) {
   yield* bindReceiveMessage(queue);
   const QueueUrl = yield* queue.queueUrl();
-  return Effect.fn("AWS.SQS.ReceiveMessage")(function* (
-    request: ReceiveMessageRequest = {},
-  ) {
-    return yield* sqs.receiveMessage({
-      ...request,
-      QueueUrl: yield* QueueUrl,
-    });
-  });
+  return yield* AWS.withContext(
+    Effect.fn(function* (request: ReceiveMessageRequest = {}) {
+      return yield* sqs.receiveMessage({
+        ...request,
+        QueueUrl: yield* QueueUrl,
+      });
+    }),
+  );
 });
 
 export const bindReceiveMessage = Binding.fn<ReceiveMessageBinding>(

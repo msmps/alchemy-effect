@@ -29,7 +29,7 @@ export const notifications = <
   const Events extends S3EventType[] = S3EventType[],
 >(
   bucket: B,
-  props: NotificationsProps<Events>,
+  props: NotificationsProps<Events> = {},
 ) => ({
   subscribe: Effect.fn(function* <Req = never, StreamReq = never>(
     process: (
@@ -83,16 +83,12 @@ export const notifications = <
 
       yield* SQS.messages(queue).subscribe((stream) =>
         stream.pipe(
-          Stream.flatMap((event) => Stream.fromArray(event.Records)),
-          Stream.mapEffect((message) => {
-            try {
-              return Effect.succeed(JSON.parse(message.body) as lambda.S3Event);
-            } catch (error) {
-              return Effect.die(error);
-            }
-          }),
-          Stream.flatMap((event) => Stream.fromArray(event.Records)),
-          Stream.map((event) => parseEvent(event)),
+          Stream.flatMap((record) =>
+            Stream.fromArray(
+              (JSON.parse(record.body) as lambda.S3Event).Records,
+            ),
+          ),
+          Stream.map(parseEvent),
           process,
         ),
       );

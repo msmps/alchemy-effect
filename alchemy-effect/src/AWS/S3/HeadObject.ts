@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Binding from "../../Binding.ts";
 import * as Output from "../../Output/index.ts";
 import { Runtime } from "../../Runtime.ts";
+import * as AWS from "../index.ts";
 import * as Lambda from "../Lambda/index.ts";
 import type { Bucket } from "./Bucket.ts";
 
@@ -14,17 +15,18 @@ export interface HeadObjectRequest extends Omit<
 export const HeadObject = Effect.fn(function* <B extends Bucket>(bucket: B) {
   yield* bindHeadObject(bucket);
   const BucketName = yield* bucket.bucketName();
-  Effect.fn("AWS.S3.HeadObject")(function* (request: HeadObjectRequest) {
-    return yield* S3.headObject({
-      ...request,
-      Bucket: yield* BucketName,
-    });
-  });
+  return yield* AWS.withContext(
+    Effect.fn(function* (request: HeadObjectRequest) {
+      return yield* S3.headObject({
+        ...request,
+        Bucket: yield* BucketName,
+      });
+    }),
+  );
 });
 
-export const bindHeadObject = Binding.fn<HeadObjectBinding>(
-  "AWS.S3.HeadObject",
-);
+export const bindHeadObject =
+  Binding.fn<HeadObjectBinding>("AWS.S3.HeadObject");
 
 export class HeadObjectBinding extends Binding.Service(
   "AWS.S3.HeadObject",

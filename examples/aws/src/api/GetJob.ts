@@ -1,5 +1,7 @@
-import { Schema as S, SLayer, Server } from "alchemy-effect";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+
+import { Schema as S, Server } from "alchemy-effect";
 
 import { Job, JobId } from "../Job.ts";
 import { JobStorage } from "../JobStorage.ts";
@@ -21,7 +23,7 @@ export class GetJob extends Server.Operation("GetJob", {
   errors: [InvalidJobId],
 }) {}
 
-export const getJob = SLayer.effect(
+export const getJob = Layer.effect(
   GetJob,
   Effect.gen(function* () {
     // everything has to be here

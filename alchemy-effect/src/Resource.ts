@@ -115,7 +115,7 @@ export type Resource<
 } & {
   [attr in keyof Attributes]: <Self extends ResourceLike>(
     this: Self,
-  ) => Effect.Effect<Output.Output<Attributes[attr], Self, never>>;
+  ) => Effect.Effect<Output.Output<Attributes[attr]>>;
 };
 
 export interface Attribute<Attr, Self extends any> extends Output.Output<

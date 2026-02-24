@@ -8,7 +8,6 @@ import * as Schedule from "effect/Schedule";
 import type * as S from "effect/Schema";
 
 import type * as lambda from "aws-lambda";
-import type { Capability } from "../../Capability.ts";
 import { createPhysicalName } from "../../PhysicalName.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, diffTags } from "../../Tags.ts";
@@ -24,11 +23,6 @@ export type StreamEvent<Data> = Omit<lambda.KinesisStreamEvent, "Records"> & {
   Records: StreamRecord<Data>[];
 };
 
-export interface Consume<S = Stream> extends Capability<
-  "AWS.Kinesis.Consume",
-  S
-> {}
-
 export const Stream = Resource<{
   <const ID extends string, const Props extends StreamProps>(
     id: ID,
@@ -39,12 +33,7 @@ export const Stream = Resource<{
 export interface Stream<
   ID extends string = string,
   Props extends StreamProps = StreamProps,
-> extends Resource<
-  "AWS.Kinesis.Stream",
-  ID,
-  Props,
-  StreamAttrs<Props>
-> {}
+> extends Resource<"AWS.Kinesis.Stream", ID, Props, StreamAttrs<Props>> {}
 
 export type StreamAttrs<Props extends StreamProps> = {
   streamName: Props["streamName"] extends string ? Props["streamName"] : string;

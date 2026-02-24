@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Binding from "../../Binding.ts";
 import * as Output from "../../Output/index.ts";
 import { Runtime } from "../../Runtime.ts";
+import * as AWS from "../index.ts";
 import * as Lambda from "../Lambda/index.ts";
 import type { Stream } from "./Stream.ts";
 
@@ -23,16 +24,18 @@ export interface PutRecordsRequest<S extends Stream> extends Omit<
 export const PutRecords = Effect.fn(function* <S extends Stream>(stream: S) {
   yield* bindPutRecords(stream);
   const StreamName = yield* stream.streamName();
-  Effect.fn("AWS.Kinesis.PutRecords")(function* (request: PutRecordsRequest<S>) {
-    return yield* Kinesis.putRecords({
-      ...request,
-      StreamName: yield* StreamName,
-      Records: request.Records.map((r) => ({
-        ...r,
-        Data: new TextEncoder().encode(JSON.stringify(r.Data)),
-      })),
-    });
-  });
+  return yield* AWS.withContext(
+    Effect.fn(function* (request: PutRecordsRequest<S>) {
+      return yield* Kinesis.putRecords({
+        ...request,
+        StreamName: yield* StreamName,
+        Records: request.Records.map((r) => ({
+          ...r,
+          Data: new TextEncoder().encode(JSON.stringify(r.Data)),
+        })),
+      });
+    }),
+  );
 });
 
 export const bindPutRecords = Binding.fn<PutRecordsBinding>(

@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Binding from "../../Binding.ts";
 import * as Output from "../../Output/index.ts";
 import { Runtime } from "../../Runtime.ts";
+import * as AWS from "../index.ts";
 import * as Lambda from "../Lambda/index.ts";
 import type { Queue } from "./Queue.ts";
 
@@ -12,14 +13,14 @@ export interface DeleteMessageRequest
 export const DeleteMessage = Effect.fn(function* <Q extends Queue>(queue: Q) {
   yield* bindDeleteMessage(queue);
   const QueueUrl = yield* queue.queueUrl();
-  return Effect.fn("AWS.SQS.DeleteMessage")(function* (
-    request: DeleteMessageRequest,
-  ) {
-    return yield* sqs.deleteMessage({
-      ...request,
-      QueueUrl: yield* QueueUrl,
-    });
-  });
+  return yield* AWS.withContext(
+    Effect.fn(function* (request: DeleteMessageRequest) {
+      return yield* sqs.deleteMessage({
+        ...request,
+        QueueUrl: yield* QueueUrl,
+      });
+    }),
+  );
 });
 
 export const bindDeleteMessage = Binding.fn<DeleteMessageBinding>(

@@ -13,16 +13,10 @@ export interface FunctionBindingProps {
   policyStatements?: PolicyStatement[];
 }
 
-export interface FunctionProps<Services = any, Err = never, Req = never> {
+export interface FunctionProps {
   main: string;
-  handler: Effect.Effect<
-    (event: any, context: Context) => Effect.Effect<any, Err, Req>,
-    Err,
-    Req
-  >;
   url?: boolean;
   functionName?: string;
-  services: Services[];
 }
 
 export const isFunction = <T>(value: T): value is T & Function => {
@@ -37,10 +31,14 @@ export const isFunction = <T>(value: T): value is T & Function => {
 export const Function = Alchemy.Resource<{
   env: Record<string, Input<string>>;
   policyStatements: Input<PolicyStatement[]>;
-  <const Id extends string, const Props extends FunctionProps = never>(
+  <
+    const Id extends string,
+    const Props extends FunctionProps = never,
+    Req = never,
+  >(
     id: Id,
-    props?: Props,
-  ): Effect.Effect<Function<Id, Props>>;
+    effect: Effect.Effect<Props, never, Req>,
+  ): Effect.Effect<Function<Id, Props>, never, Req>;
 }>("AWS.Lambda.Function");
 
 export interface Function<

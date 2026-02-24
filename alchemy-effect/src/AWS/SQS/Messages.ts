@@ -56,6 +56,7 @@ export const messages = <Q extends Queue>(
                   record.eventSourceARN === queueArn,
               );
               if (records.length > 0) {
+                // TODO(sam): support feeding back failed records to SQS
                 return process(Stream.fromArray(records)).pipe(Effect.orDie);
               }
             }
@@ -82,6 +83,7 @@ export const messages = <Q extends Queue>(
 
             yield* process(Stream.fromArray(records)).pipe(Effect.orDie);
 
+            // TODO(sam): only delete messages that were successfully processed
             yield* deleteMessageBatch({
               Entries: messages.map((msg, i) => ({
                 Id: msg.MessageId ?? String(i),

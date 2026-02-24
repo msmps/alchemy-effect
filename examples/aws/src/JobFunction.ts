@@ -1,44 +1,32 @@
-import * as AWS from "alchemy-effect/AWS";
-import * as Layer from "effect/Layer";
-import { jobApi, JobApi } from "./JobApi.ts";
-import { S3JobQueue } from "./JobQueue.ts";
-import { JobsBucket } from "./JobsBucket.ts";
-import { S3JobStorage } from "./JobStorage.ts";
-import { JobWorker, jobWorker } from "./JobWorker.ts";
+import * as Lambda from "alchemy-effect/AWS/Lambda";
+import * as S3 from "alchemy-effect/AWS/S3";
+import * as SQS from "alchemy-effect/AWS/SQS";
+import * as Effect from "effect/Effect";
+import * as Stream from "effect/Stream";
+import { JobStorage, jobStorage } from "./JobStorage.ts";
 
-// TAG (a way to reference the Lambda without bloating bundle)
-export class JobFunction extends AWS.Lambda.Function<JobFunction>()(
+export default Lambda.Function(
   "JobFunction",
-  {
-    services: [JobApi, JobWorker],
-  },
-) {}
+  Effect.gen(function* () {
+    const { bucket, getJob } = yield* JobStorage;
+    const queue = yield* SQS.Queue("JobsQueue");
+    const sink = yield* SQS.sink(queue);
 
-// class MyDbConnection extends Cloudflare.Hyperdrive("MyDbConnection", {
-//   database: MyDb,
-// }) {}
+    yield* S3.notifications(bucket).subscribe((stream) =>
+      stream.pipe(
+        Stream.flatMap((item) =>
+          Stream.fromEffect(getJob(item.key).pipe(Effect.orDie)),
+        ),
+        Stream.map((msg) => JSON.stringify(msg)),
+        Stream.tapSink(sink),
+        Stream.runDrain,
+      ),
+    );
 
-const jobFunction = JobFunction.pipe(
-  Layer.provide(
-    Layer.mergeAll(jobApi, jobWorker).pipe(
-      Layer.provide(Layer.provideMerge(S3JobQueue, S3JobStorage)),
-    ),
-  ),
-  AWS.Lambda.make({
-    main: import.meta.filename,
-    memory: 1024,
-    runtime: "nodejs22.x",
-    // env
-    // policyStatements
-  }),
-  // Add infra dependencies and enforce least privilege IAM policies
-  AWS.Lambda.bind(
-    AWS.S3.GetObject(JobsBucket),
-    AWS.S3.PutObject(JobsBucket),
-    AWS.Lambda.BucketEventSource("JobsBucketEventSource", JobsBucket),
-    // MyDbConnection,
-  ),
+    return {
+      main: import.meta.filename,
+      memory: 1024,
+      runtime: "nodejs22.x",
+    };
+  }).pipe(Effect.provide(jobStorage)),
 );
-
-// IMPLEMENTATION (provide all the runtime layers and infra dependencies)
-export default jobFunction;

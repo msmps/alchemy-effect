@@ -3,6 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Binding from "../../Binding.ts";
 import * as Output from "../../Output/index.ts";
 import { Runtime } from "../../Runtime.ts";
+import * as AWS from "../index.ts";
 import type { Function } from "./Function.ts";
 import * as LambdaModule from "./index.ts";
 
@@ -11,15 +12,19 @@ export interface InvokeRequest extends Omit<
   "FunctionName"
 > {}
 
-export const InvokeFunction = Effect.fn(function* <F extends Function>(func: F) {
+export const InvokeFunction = Effect.fn(function* <F extends Function>(
+  func: F,
+) {
   yield* bindInvokeFunction(func);
   const FunctionArn = yield* func.functionArn();
-  Effect.fn("AWS.Lambda.InvokeFunction")(function* (request?: InvokeRequest) {
-    return yield* Lambda.invoke({
-      ...request,
-      FunctionName: yield* FunctionArn,
-    });
-  });
+  return yield* AWS.withContext(
+    Effect.fn(function* (request?: InvokeRequest) {
+      return yield* Lambda.invoke({
+        ...request,
+        FunctionName: yield* FunctionArn,
+      });
+    }),
+  );
 });
 
 export const bindInvokeFunction = Binding.fn<InvokeFunctionBinding>(

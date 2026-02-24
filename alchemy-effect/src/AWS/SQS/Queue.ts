@@ -1,28 +1,14 @@
-import type * as lambda from "aws-lambda";
 import { Region } from "distilled-aws/Region";
 import * as sqs from "distilled-aws/sqs";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import type * as S from "effect/Schema";
 
 import { createPhysicalName } from "../../PhysicalName.ts";
 import { Resource } from "../../Resource.ts";
 import { Account } from "../Account.ts";
 import type { PolicyStatement } from "../IAM/Policy.ts";
 
-export type QueueRecord<Data> = Omit<lambda.SQSRecord, "body"> & {
-  body: Data;
-};
-
-export type QueueEvent<Data> = Omit<lambda.SQSEvent, "Records"> & {
-  Records: QueueRecord<Data>[];
-};
-
-export type QueueProps<Msg = any> = {
-  /**
-   * Schema for the message body.
-   */
-  schema: S.Schema<Msg>;
+export type QueueProps = {
   /**
    * Name of the queue.
    * @default ${app}-${stage}-${id}?.fifo
