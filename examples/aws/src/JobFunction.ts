@@ -1,17 +1,41 @@
+import { RemovalPolicy } from "alchemy-effect";
 import * as Lambda from "alchemy-effect/AWS/Lambda";
 import * as S3 from "alchemy-effect/AWS/S3";
 import * as SQS from "alchemy-effect/AWS/SQS";
 import * as Http from "alchemy-effect/Http";
+import { Stack } from "alchemy-effect/Stack";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { JobHttpEffect } from "./JobHttpApi.ts";
 import { JobStorage, jobStorage } from "./JobStorage.ts";
 
+// ## sync drift
+// alchemy sync
+// alchemy sync ./alchemy.run.ts
+// alchemy sync ./alchemy.run.ts --no-adopt (default)
+// alchemy sync ./alchemy.run.ts --stack
+
+// ## adopt resources
+// alchemy sync
+// alchemy sync --adopt (all)
+// alchemy sync ./alchemy.run.ts --adopt (all)
+// alchemy sync ./alchemy.run.ts --adopt JobsQueue,JobsDatabase
+
+// ## deploy
+// alchemy deploy
+// alchemy deploy --adopt
+// alchemy deploy --dry-run --adopt
+// alchemy deploy --dry-run --adopt JobsQueue,JobsDatabase
+
 export default Effect.gen(function* () {
+  const stack = yield* Stack;
+
   const { bucket, getJob } = yield* JobStorage;
 
-  const queue = yield* SQS.Queue("JobsQueue");
+  const queue = yield* SQS.Queue("JobsQueue").pipe(
+    RemovalPolicy.retain(stack.stage === "prod"),
+  );
 
   // Sink
   const sink = yield* SQS.QueueSink.bind(queue);
