@@ -26,9 +26,7 @@ export const LocalState = Layer.effect(
     const recover = <T>(effect: Effect.Effect<T, PlatformError, never>) =>
       effect.pipe(
         Effect.catchTag("PlatformError", (e) =>
-          e.reason._tag === "SystemError" && e.reason.kind === "NotFound"
-            ? Effect.succeed(undefined)
-            : fail(e),
+          e.reason._tag === "NotFound" ? Effect.void : fail(e),
         ),
       );
 

@@ -75,7 +75,7 @@ test(
       },
       deletions: expect.emptyObject(),
     });
-  }).pipe(Effect.provide(TestLayers)),
+  }),
 );
 
 test(
@@ -131,7 +131,7 @@ test(
       },
       deletions: expect.emptyObject(),
     });
-  }).pipe(Effect.provide(TestLayers)),
+  }),
 );
 
 test(
@@ -214,7 +214,7 @@ test(
         },
       },
     });
-  }).pipe(Effect.provide(TestLayers)),
+  }),
 );
 
 test(
@@ -359,7 +359,7 @@ const testSimple = (
           });
         }
       }
-    }).pipe(Effect.provide(TestLayers)),
+    }),
   );
 
 describe("prior crash in 'creating' state", () => {
@@ -685,7 +685,7 @@ test(
       },
       deletions: expect.emptyObject(),
     });
-  }).pipe(Effect.provide(TestLayers)),
+  }),
 );
 
 test(
@@ -738,7 +738,7 @@ test(
       },
       deletions: expect.emptyObject(),
     });
-  }).pipe(Effect.provide(TestLayers)),
+  }),
 );
 
 describe("Outputs should resolve to old values", () => {
@@ -795,9 +795,9 @@ describe("Outputs should resolve to old values", () => {
               stringArray: ["test-string"],
             });
             yield* TestResource("B", input(A));
-          }),
+          }).pipe(makePlan),
         ).toMatchObject(expected(attr));
-      }).pipe(Effect.provide(TestLayers)),
+      }),
     );
 
   test(
@@ -848,6 +848,8 @@ describe("stable properties should not cause downstream changes", () => {
     description: string,
     input: (A: TestResource) => Input<TestResourceProps>,
   ) => {
+    // get the keys
+    const props = input(Output.of({}) as any);
     _test(
       description,
       {
@@ -879,7 +881,7 @@ describe("stable properties should not cause downstream changes", () => {
               Object.entries({
                 string: "A",
                 stringArray: ["A"],
-              }).filter(([key]) => key in input),
+              }).filter(([key]) => key in props),
             ),
             attr: {
               stableString: "A",
@@ -896,7 +898,7 @@ describe("stable properties should not cause downstream changes", () => {
               string: "test-string",
             });
             yield* TestResource("B", input(A));
-          }),
+          }).pipe(makePlan),
         ).toMatchObject({
           resources: {
             A: {
@@ -911,7 +913,7 @@ describe("stable properties should not cause downstream changes", () => {
           },
           deletions: expect.emptyObject(),
         });
-      }).pipe(Effect.provide(TestLayers)),
+      }),
     );
   };
 
