@@ -3,7 +3,7 @@ import * as Data from "effect/Data";
 /**
  * Base error properties shared by all SQLite errors.
  */
-interface SqliteErrorProps {
+interface SQLiteErrorProps {
   readonly message: string;
   readonly cause?: unknown;
 }
@@ -15,477 +15,477 @@ interface SqliteErrorProps {
 /**
  * SQLITE_ERROR (1) - Generic error code.
  */
-export class SqliteError extends Data.TaggedError(
+export class SQLiteError extends Data.TaggedError(
   "SQLITE_ERROR",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_INTERNAL (2) - Internal malfunction.
  */
-export class SqliteInternal extends Data.TaggedError(
+export class SQLiteInternal extends Data.TaggedError(
   "SQLITE_INTERNAL",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_PERM (3) - Access permission denied.
  */
-export class SqlitePerm extends Data.TaggedError(
+export class SQLitePerm extends Data.TaggedError(
   "SQLITE_PERM",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_ABORT (4) - Operation aborted.
  */
-export class SqliteAbort extends Data.TaggedError(
+export class SQLiteAbort extends Data.TaggedError(
   "SQLITE_ABORT",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_BUSY (5) - Database file is locked.
  */
-export class SqliteBusy extends Data.TaggedError(
+export class SQLiteBusy extends Data.TaggedError(
   "SQLITE_BUSY",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_LOCKED (6) - A table in the database is locked.
  */
-export class SqliteLocked extends Data.TaggedError(
+export class SQLiteLocked extends Data.TaggedError(
   "SQLITE_LOCKED",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_NOMEM (7) - Memory allocation failed.
  */
-export class SqliteNomem extends Data.TaggedError(
+export class SQLiteNomem extends Data.TaggedError(
   "SQLITE_NOMEM",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_READONLY (8) - Attempt to write a readonly database.
  */
-export class SqliteReadonly extends Data.TaggedError(
+export class SQLiteReadonly extends Data.TaggedError(
   "SQLITE_READONLY",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_INTERRUPT (9) - Operation interrupted.
  */
-export class SqliteInterrupt extends Data.TaggedError(
+export class SQLiteInterrupt extends Data.TaggedError(
   "SQLITE_INTERRUPT",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_IOERR (10) - I/O error.
  */
-export class SqliteIoerr extends Data.TaggedError(
+export class SQLiteIoerr extends Data.TaggedError(
   "SQLITE_IOERR",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_CORRUPT (11) - Database disk image is malformed.
  */
-export class SqliteCorrupt extends Data.TaggedError(
+export class SQLiteCorrupt extends Data.TaggedError(
   "SQLITE_CORRUPT",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_NOTFOUND (12) - Unknown opcode or table not found.
  */
-export class SqliteNotfound extends Data.TaggedError(
+export class SQLiteNotfound extends Data.TaggedError(
   "SQLITE_NOTFOUND",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_FULL (13) - Database or disk is full.
  */
-export class SqliteFull extends Data.TaggedError(
+export class SQLiteFull extends Data.TaggedError(
   "SQLITE_FULL",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_CANTOPEN (14) - Unable to open database file.
  */
-export class SqliteCantopen extends Data.TaggedError(
+export class SQLiteCantopen extends Data.TaggedError(
   "SQLITE_CANTOPEN",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_PROTOCOL (15) - Database lock protocol error.
  */
-export class SqliteProtocol extends Data.TaggedError(
+export class SQLiteProtocol extends Data.TaggedError(
   "SQLITE_PROTOCOL",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_EMPTY (16) - Internal use only.
  */
-export class SqliteEmpty extends Data.TaggedError(
+export class SQLiteEmpty extends Data.TaggedError(
   "SQLITE_EMPTY",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_SCHEMA (17) - Database schema changed.
  */
-export class SqliteSchema extends Data.TaggedError(
+export class SQLiteSchema extends Data.TaggedError(
   "SQLITE_SCHEMA",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_TOOBIG (18) - String or BLOB exceeds size limit.
  */
-export class SqliteToobig extends Data.TaggedError(
+export class SQLiteToobig extends Data.TaggedError(
   "SQLITE_TOOBIG",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_CONSTRAINT (19) - Constraint violation.
  */
-export class SqliteConstraint extends Data.TaggedError(
+export class SQLiteConstraint extends Data.TaggedError(
   "SQLITE_CONSTRAINT",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_MISMATCH (20) - Data type mismatch.
  */
-export class SqliteMismatch extends Data.TaggedError(
+export class SQLiteMismatch extends Data.TaggedError(
   "SQLITE_MISMATCH",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_MISUSE (21) - Library used incorrectly.
  */
-export class SqliteMisuse extends Data.TaggedError(
+export class SQLiteMisuse extends Data.TaggedError(
   "SQLITE_MISUSE",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_NOLFS (22) - Uses OS features not supported on host.
  */
-export class SqliteNolfs extends Data.TaggedError(
+export class SQLiteNolfs extends Data.TaggedError(
   "SQLITE_NOLFS",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_AUTH (23) - Authorization denied.
  */
-export class SqliteAuth extends Data.TaggedError(
+export class SQLiteAuth extends Data.TaggedError(
   "SQLITE_AUTH",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_FORMAT (24) - Not used.
  */
-export class SqliteFormat extends Data.TaggedError(
+export class SQLiteFormat extends Data.TaggedError(
   "SQLITE_FORMAT",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_RANGE (25) - 2nd parameter to sqlite3_bind out of range.
  */
-export class SqliteRange extends Data.TaggedError(
+export class SQLiteRange extends Data.TaggedError(
   "SQLITE_RANGE",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_NOTADB (26) - File opened that is not a database file.
  */
-export class SqliteNotadb extends Data.TaggedError(
+export class SQLiteNotadb extends Data.TaggedError(
   "SQLITE_NOTADB",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_NOTICE (27) - Notifications from sqlite3_log().
  */
-export class SqliteNotice extends Data.TaggedError(
+export class SQLiteNotice extends Data.TaggedError(
   "SQLITE_NOTICE",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 /**
  * SQLITE_WARNING (28) - Warnings from sqlite3_log().
  */
-export class SqliteWarning extends Data.TaggedError(
+export class SQLiteWarning extends Data.TaggedError(
   "SQLITE_WARNING",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - ABORT
 // =============================================================================
 
-export class SqliteAbortRollback extends Data.TaggedError(
+export class SQLiteAbortRollback extends Data.TaggedError(
   "SQLITE_ABORT_ROLLBACK",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - AUTH
 // =============================================================================
 
-export class SqliteAuthUser extends Data.TaggedError(
+export class SQLiteAuthUser extends Data.TaggedError(
   "SQLITE_AUTH_USER",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - BUSY
 // =============================================================================
 
-export class SqliteBusyRecovery extends Data.TaggedError(
+export class SQLiteBusyRecovery extends Data.TaggedError(
   "SQLITE_BUSY_RECOVERY",
-)<SqliteErrorProps> {}
-export class SqliteBusySnapshot extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteBusySnapshot extends Data.TaggedError(
   "SQLITE_BUSY_SNAPSHOT",
-)<SqliteErrorProps> {}
-export class SqliteBusyTimeout extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteBusyTimeout extends Data.TaggedError(
   "SQLITE_BUSY_TIMEOUT",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - CANTOPEN
 // =============================================================================
 
-export class SqliteCantopenConvpath extends Data.TaggedError(
+export class SQLiteCantopenConvpath extends Data.TaggedError(
   "SQLITE_CANTOPEN_CONVPATH",
-)<SqliteErrorProps> {}
-export class SqliteCantopenDirtywal extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteCantopenDirtywal extends Data.TaggedError(
   "SQLITE_CANTOPEN_DIRTYWAL",
-)<SqliteErrorProps> {}
-export class SqliteCantopenFullpath extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteCantopenFullpath extends Data.TaggedError(
   "SQLITE_CANTOPEN_FULLPATH",
-)<SqliteErrorProps> {}
-export class SqliteCantopenIsdir extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteCantopenIsdir extends Data.TaggedError(
   "SQLITE_CANTOPEN_ISDIR",
-)<SqliteErrorProps> {}
-export class SqliteCantopenNotempdir extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteCantopenNotempdir extends Data.TaggedError(
   "SQLITE_CANTOPEN_NOTEMPDIR",
-)<SqliteErrorProps> {}
-export class SqliteCantopenSymlink extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteCantopenSymlink extends Data.TaggedError(
   "SQLITE_CANTOPEN_SYMLINK",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - CONSTRAINT
 // =============================================================================
 
-export class SqliteConstraintCheck extends Data.TaggedError(
+export class SQLiteConstraintCheck extends Data.TaggedError(
   "SQLITE_CONSTRAINT_CHECK",
-)<SqliteErrorProps> {}
-export class SqliteConstraintCommithook extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintCommithook extends Data.TaggedError(
   "SQLITE_CONSTRAINT_COMMITHOOK",
-)<SqliteErrorProps> {}
-export class SqliteConstraintDatatype extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintDatatype extends Data.TaggedError(
   "SQLITE_CONSTRAINT_DATATYPE",
-)<SqliteErrorProps> {}
-export class SqliteConstraintForeignkey extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintForeignkey extends Data.TaggedError(
   "SQLITE_CONSTRAINT_FOREIGNKEY",
-)<SqliteErrorProps> {}
-export class SqliteConstraintFunction extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintFunction extends Data.TaggedError(
   "SQLITE_CONSTRAINT_FUNCTION",
-)<SqliteErrorProps> {}
-export class SqliteConstraintNotnull extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintNotnull extends Data.TaggedError(
   "SQLITE_CONSTRAINT_NOTNULL",
-)<SqliteErrorProps> {}
-export class SqliteConstraintPinned extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintPinned extends Data.TaggedError(
   "SQLITE_CONSTRAINT_PINNED",
-)<SqliteErrorProps> {}
-export class SqliteConstraintPrimarykey extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintPrimarykey extends Data.TaggedError(
   "SQLITE_CONSTRAINT_PRIMARYKEY",
-)<SqliteErrorProps> {}
-export class SqliteConstraintRowid extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintRowid extends Data.TaggedError(
   "SQLITE_CONSTRAINT_ROWID",
-)<SqliteErrorProps> {}
-export class SqliteConstraintTrigger extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintTrigger extends Data.TaggedError(
   "SQLITE_CONSTRAINT_TRIGGER",
-)<SqliteErrorProps> {}
-export class SqliteConstraintUnique extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintUnique extends Data.TaggedError(
   "SQLITE_CONSTRAINT_UNIQUE",
-)<SqliteErrorProps> {}
-export class SqliteConstraintVtab extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteConstraintVtab extends Data.TaggedError(
   "SQLITE_CONSTRAINT_VTAB",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - CORRUPT
 // =============================================================================
 
-export class SqliteCorruptIndex extends Data.TaggedError(
+export class SQLiteCorruptIndex extends Data.TaggedError(
   "SQLITE_CORRUPT_INDEX",
-)<SqliteErrorProps> {}
-export class SqliteCorruptSequence extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteCorruptSequence extends Data.TaggedError(
   "SQLITE_CORRUPT_SEQUENCE",
-)<SqliteErrorProps> {}
-export class SqliteCorruptVtab extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteCorruptVtab extends Data.TaggedError(
   "SQLITE_CORRUPT_VTAB",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - ERROR
 // =============================================================================
 
-export class SqliteErrorMissingCollseq extends Data.TaggedError(
+export class SQLiteErrorMissingCollseq extends Data.TaggedError(
   "SQLITE_ERROR_MISSING_COLLSEQ",
-)<SqliteErrorProps> {}
-export class SqliteErrorRetry extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteErrorRetry extends Data.TaggedError(
   "SQLITE_ERROR_RETRY",
-)<SqliteErrorProps> {}
-export class SqliteErrorSnapshot extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteErrorSnapshot extends Data.TaggedError(
   "SQLITE_ERROR_SNAPSHOT",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - IOERR
 // =============================================================================
 
-export class SqliteIoerrAccess extends Data.TaggedError(
+export class SQLiteIoerrAccess extends Data.TaggedError(
   "SQLITE_IOERR_ACCESS",
-)<SqliteErrorProps> {}
-export class SqliteIoerrAuth extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrAuth extends Data.TaggedError(
   "SQLITE_IOERR_AUTH",
-)<SqliteErrorProps> {}
-export class SqliteIoerrBeginAtomic extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrBeginAtomic extends Data.TaggedError(
   "SQLITE_IOERR_BEGIN_ATOMIC",
-)<SqliteErrorProps> {}
-export class SqliteIoerrBlocked extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrBlocked extends Data.TaggedError(
   "SQLITE_IOERR_BLOCKED",
-)<SqliteErrorProps> {}
-export class SqliteIoerrCheckreservedlock extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrCheckreservedlock extends Data.TaggedError(
   "SQLITE_IOERR_CHECKRESERVEDLOCK",
-)<SqliteErrorProps> {}
-export class SqliteIoerrClose extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrClose extends Data.TaggedError(
   "SQLITE_IOERR_CLOSE",
-)<SqliteErrorProps> {}
-export class SqliteIoerrCommitAtomic extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrCommitAtomic extends Data.TaggedError(
   "SQLITE_IOERR_COMMIT_ATOMIC",
-)<SqliteErrorProps> {}
-export class SqliteIoerrConvpath extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrConvpath extends Data.TaggedError(
   "SQLITE_IOERR_CONVPATH",
-)<SqliteErrorProps> {}
-export class SqliteIoerrCorruptfs extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrCorruptfs extends Data.TaggedError(
   "SQLITE_IOERR_CORRUPTFS",
-)<SqliteErrorProps> {}
-export class SqliteIoerrData extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrData extends Data.TaggedError(
   "SQLITE_IOERR_DATA",
-)<SqliteErrorProps> {}
-export class SqliteIoerrDelete extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrDelete extends Data.TaggedError(
   "SQLITE_IOERR_DELETE",
-)<SqliteErrorProps> {}
-export class SqliteIoerrDeleteNoent extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrDeleteNoent extends Data.TaggedError(
   "SQLITE_IOERR_DELETE_NOENT",
-)<SqliteErrorProps> {}
-export class SqliteIoerrDirClose extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrDirClose extends Data.TaggedError(
   "SQLITE_IOERR_DIR_CLOSE",
-)<SqliteErrorProps> {}
-export class SqliteIoerrDirFsync extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrDirFsync extends Data.TaggedError(
   "SQLITE_IOERR_DIR_FSYNC",
-)<SqliteErrorProps> {}
-export class SqliteIoerrFstat extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrFstat extends Data.TaggedError(
   "SQLITE_IOERR_FSTAT",
-)<SqliteErrorProps> {}
-export class SqliteIoerrFsync extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrFsync extends Data.TaggedError(
   "SQLITE_IOERR_FSYNC",
-)<SqliteErrorProps> {}
-export class SqliteIoerrGettemppath extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrGettemppath extends Data.TaggedError(
   "SQLITE_IOERR_GETTEMPPATH",
-)<SqliteErrorProps> {}
-export class SqliteIoerrLock extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrLock extends Data.TaggedError(
   "SQLITE_IOERR_LOCK",
-)<SqliteErrorProps> {}
-export class SqliteIoerrMmap extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrMmap extends Data.TaggedError(
   "SQLITE_IOERR_MMAP",
-)<SqliteErrorProps> {}
-export class SqliteIoerrNomem extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrNomem extends Data.TaggedError(
   "SQLITE_IOERR_NOMEM",
-)<SqliteErrorProps> {}
-export class SqliteIoerrRdlock extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrRdlock extends Data.TaggedError(
   "SQLITE_IOERR_RDLOCK",
-)<SqliteErrorProps> {}
-export class SqliteIoerrRead extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrRead extends Data.TaggedError(
   "SQLITE_IOERR_READ",
-)<SqliteErrorProps> {}
-export class SqliteIoerrRollbackAtomic extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrRollbackAtomic extends Data.TaggedError(
   "SQLITE_IOERR_ROLLBACK_ATOMIC",
-)<SqliteErrorProps> {}
-export class SqliteIoerrSeek extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrSeek extends Data.TaggedError(
   "SQLITE_IOERR_SEEK",
-)<SqliteErrorProps> {}
-export class SqliteIoerrShmlock extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrShmlock extends Data.TaggedError(
   "SQLITE_IOERR_SHMLOCK",
-)<SqliteErrorProps> {}
-export class SqliteIoerrShmmap extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrShmmap extends Data.TaggedError(
   "SQLITE_IOERR_SHMMAP",
-)<SqliteErrorProps> {}
-export class SqliteIoerrShmopen extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrShmopen extends Data.TaggedError(
   "SQLITE_IOERR_SHMOPEN",
-)<SqliteErrorProps> {}
-export class SqliteIoerrShmsize extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrShmsize extends Data.TaggedError(
   "SQLITE_IOERR_SHMSIZE",
-)<SqliteErrorProps> {}
-export class SqliteIoerrShortRead extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrShortRead extends Data.TaggedError(
   "SQLITE_IOERR_SHORT_READ",
-)<SqliteErrorProps> {}
-export class SqliteIoerrTruncate extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrTruncate extends Data.TaggedError(
   "SQLITE_IOERR_TRUNCATE",
-)<SqliteErrorProps> {}
-export class SqliteIoerrUnlock extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrUnlock extends Data.TaggedError(
   "SQLITE_IOERR_UNLOCK",
-)<SqliteErrorProps> {}
-export class SqliteIoerrVnode extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrVnode extends Data.TaggedError(
   "SQLITE_IOERR_VNODE",
-)<SqliteErrorProps> {}
-export class SqliteIoerrWrite extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteIoerrWrite extends Data.TaggedError(
   "SQLITE_IOERR_WRITE",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - LOCKED
 // =============================================================================
 
-export class SqliteLockedSharedcache extends Data.TaggedError(
+export class SQLiteLockedSharedcache extends Data.TaggedError(
   "SQLITE_LOCKED_SHAREDCACHE",
-)<SqliteErrorProps> {}
-export class SqliteLockedVtab extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteLockedVtab extends Data.TaggedError(
   "SQLITE_LOCKED_VTAB",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - NOTICE
 // =============================================================================
 
-export class SqliteNoticeRecoverRollback extends Data.TaggedError(
+export class SQLiteNoticeRecoverRollback extends Data.TaggedError(
   "SQLITE_NOTICE_RECOVER_ROLLBACK",
-)<SqliteErrorProps> {}
-export class SqliteNoticeRecoverWal extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteNoticeRecoverWal extends Data.TaggedError(
   "SQLITE_NOTICE_RECOVER_WAL",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - READONLY
 // =============================================================================
 
-export class SqliteReadonlyCantinit extends Data.TaggedError(
+export class SQLiteReadonlyCantinit extends Data.TaggedError(
   "SQLITE_READONLY_CANTINIT",
-)<SqliteErrorProps> {}
-export class SqliteReadonlyCantlock extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteReadonlyCantlock extends Data.TaggedError(
   "SQLITE_READONLY_CANTLOCK",
-)<SqliteErrorProps> {}
-export class SqliteReadonlyDbmoved extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteReadonlyDbmoved extends Data.TaggedError(
   "SQLITE_READONLY_DBMOVED",
-)<SqliteErrorProps> {}
-export class SqliteReadonlyDirectory extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteReadonlyDirectory extends Data.TaggedError(
   "SQLITE_READONLY_DIRECTORY",
-)<SqliteErrorProps> {}
-export class SqliteReadonlyRecovery extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteReadonlyRecovery extends Data.TaggedError(
   "SQLITE_READONLY_RECOVERY",
-)<SqliteErrorProps> {}
-export class SqliteReadonlyRollback extends Data.TaggedError(
+)<SQLiteErrorProps> {}
+export class SQLiteReadonlyRollback extends Data.TaggedError(
   "SQLITE_READONLY_ROLLBACK",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Extended Result Codes - WARNING
 // =============================================================================
 
-export class SqliteWarningAutoindex extends Data.TaggedError(
+export class SQLiteWarningAutoindex extends Data.TaggedError(
   "SQLITE_WARNING_AUTOINDEX",
-)<SqliteErrorProps> {}
+)<SQLiteErrorProps> {}
 
 // =============================================================================
 // Unknown Error (fallback)
@@ -494,8 +494,8 @@ export class SqliteWarningAutoindex extends Data.TaggedError(
 /**
  * Fallback for unknown or unrecognized SQLite error codes.
  */
-export class SqliteUnknownError extends Data.TaggedError("SQLITE_UNKNOWN")<
-  SqliteErrorProps & {
+export class SQLiteUnknownError extends Data.TaggedError("SQLITE_UNKNOWN")<
+  SQLiteErrorProps & {
     readonly code?: string;
   }
 > {}
@@ -507,123 +507,123 @@ export class SqliteUnknownError extends Data.TaggedError("SQLITE_UNKNOWN")<
 /**
  * Union of all SQLite error types.
  */
-export type SqliteErrorType =
+export type SQLiteErrorType =
   // Primary result codes
-  | SqliteError
-  | SqliteInternal
-  | SqlitePerm
-  | SqliteAbort
-  | SqliteBusy
-  | SqliteLocked
-  | SqliteNomem
-  | SqliteReadonly
-  | SqliteInterrupt
-  | SqliteIoerr
-  | SqliteCorrupt
-  | SqliteNotfound
-  | SqliteFull
-  | SqliteCantopen
-  | SqliteProtocol
-  | SqliteEmpty
-  | SqliteSchema
-  | SqliteToobig
-  | SqliteConstraint
-  | SqliteMismatch
-  | SqliteMisuse
-  | SqliteNolfs
-  | SqliteAuth
-  | SqliteFormat
-  | SqliteRange
-  | SqliteNotadb
-  | SqliteNotice
-  | SqliteWarning
+  | SQLiteError
+  | SQLiteInternal
+  | SQLitePerm
+  | SQLiteAbort
+  | SQLiteBusy
+  | SQLiteLocked
+  | SQLiteNomem
+  | SQLiteReadonly
+  | SQLiteInterrupt
+  | SQLiteIoerr
+  | SQLiteCorrupt
+  | SQLiteNotfound
+  | SQLiteFull
+  | SQLiteCantopen
+  | SQLiteProtocol
+  | SQLiteEmpty
+  | SQLiteSchema
+  | SQLiteToobig
+  | SQLiteConstraint
+  | SQLiteMismatch
+  | SQLiteMisuse
+  | SQLiteNolfs
+  | SQLiteAuth
+  | SQLiteFormat
+  | SQLiteRange
+  | SQLiteNotadb
+  | SQLiteNotice
+  | SQLiteWarning
   // Extended - ABORT
-  | SqliteAbortRollback
+  | SQLiteAbortRollback
   // Extended - AUTH
-  | SqliteAuthUser
+  | SQLiteAuthUser
   // Extended - BUSY
-  | SqliteBusyRecovery
-  | SqliteBusySnapshot
-  | SqliteBusyTimeout
+  | SQLiteBusyRecovery
+  | SQLiteBusySnapshot
+  | SQLiteBusyTimeout
   // Extended - CANTOPEN
-  | SqliteCantopenConvpath
-  | SqliteCantopenDirtywal
-  | SqliteCantopenFullpath
-  | SqliteCantopenIsdir
-  | SqliteCantopenNotempdir
-  | SqliteCantopenSymlink
+  | SQLiteCantopenConvpath
+  | SQLiteCantopenDirtywal
+  | SQLiteCantopenFullpath
+  | SQLiteCantopenIsdir
+  | SQLiteCantopenNotempdir
+  | SQLiteCantopenSymlink
   // Extended - CONSTRAINT
-  | SqliteConstraintCheck
-  | SqliteConstraintCommithook
-  | SqliteConstraintDatatype
-  | SqliteConstraintForeignkey
-  | SqliteConstraintFunction
-  | SqliteConstraintNotnull
-  | SqliteConstraintPinned
-  | SqliteConstraintPrimarykey
-  | SqliteConstraintRowid
-  | SqliteConstraintTrigger
-  | SqliteConstraintUnique
-  | SqliteConstraintVtab
+  | SQLiteConstraintCheck
+  | SQLiteConstraintCommithook
+  | SQLiteConstraintDatatype
+  | SQLiteConstraintForeignkey
+  | SQLiteConstraintFunction
+  | SQLiteConstraintNotnull
+  | SQLiteConstraintPinned
+  | SQLiteConstraintPrimarykey
+  | SQLiteConstraintRowid
+  | SQLiteConstraintTrigger
+  | SQLiteConstraintUnique
+  | SQLiteConstraintVtab
   // Extended - CORRUPT
-  | SqliteCorruptIndex
-  | SqliteCorruptSequence
-  | SqliteCorruptVtab
+  | SQLiteCorruptIndex
+  | SQLiteCorruptSequence
+  | SQLiteCorruptVtab
   // Extended - ERROR
-  | SqliteErrorMissingCollseq
-  | SqliteErrorRetry
-  | SqliteErrorSnapshot
+  | SQLiteErrorMissingCollseq
+  | SQLiteErrorRetry
+  | SQLiteErrorSnapshot
   // Extended - IOERR
-  | SqliteIoerrAccess
-  | SqliteIoerrAuth
-  | SqliteIoerrBeginAtomic
-  | SqliteIoerrBlocked
-  | SqliteIoerrCheckreservedlock
-  | SqliteIoerrClose
-  | SqliteIoerrCommitAtomic
-  | SqliteIoerrConvpath
-  | SqliteIoerrCorruptfs
-  | SqliteIoerrData
-  | SqliteIoerrDelete
-  | SqliteIoerrDeleteNoent
-  | SqliteIoerrDirClose
-  | SqliteIoerrDirFsync
-  | SqliteIoerrFstat
-  | SqliteIoerrFsync
-  | SqliteIoerrGettemppath
-  | SqliteIoerrLock
-  | SqliteIoerrMmap
-  | SqliteIoerrNomem
-  | SqliteIoerrRdlock
-  | SqliteIoerrRead
-  | SqliteIoerrRollbackAtomic
-  | SqliteIoerrSeek
-  | SqliteIoerrShmlock
-  | SqliteIoerrShmmap
-  | SqliteIoerrShmopen
-  | SqliteIoerrShmsize
-  | SqliteIoerrShortRead
-  | SqliteIoerrTruncate
-  | SqliteIoerrUnlock
-  | SqliteIoerrVnode
-  | SqliteIoerrWrite
+  | SQLiteIoerrAccess
+  | SQLiteIoerrAuth
+  | SQLiteIoerrBeginAtomic
+  | SQLiteIoerrBlocked
+  | SQLiteIoerrCheckreservedlock
+  | SQLiteIoerrClose
+  | SQLiteIoerrCommitAtomic
+  | SQLiteIoerrConvpath
+  | SQLiteIoerrCorruptfs
+  | SQLiteIoerrData
+  | SQLiteIoerrDelete
+  | SQLiteIoerrDeleteNoent
+  | SQLiteIoerrDirClose
+  | SQLiteIoerrDirFsync
+  | SQLiteIoerrFstat
+  | SQLiteIoerrFsync
+  | SQLiteIoerrGettemppath
+  | SQLiteIoerrLock
+  | SQLiteIoerrMmap
+  | SQLiteIoerrNomem
+  | SQLiteIoerrRdlock
+  | SQLiteIoerrRead
+  | SQLiteIoerrRollbackAtomic
+  | SQLiteIoerrSeek
+  | SQLiteIoerrShmlock
+  | SQLiteIoerrShmmap
+  | SQLiteIoerrShmopen
+  | SQLiteIoerrShmsize
+  | SQLiteIoerrShortRead
+  | SQLiteIoerrTruncate
+  | SQLiteIoerrUnlock
+  | SQLiteIoerrVnode
+  | SQLiteIoerrWrite
   // Extended - LOCKED
-  | SqliteLockedSharedcache
-  | SqliteLockedVtab
+  | SQLiteLockedSharedcache
+  | SQLiteLockedVtab
   // Extended - NOTICE
-  | SqliteNoticeRecoverRollback
-  | SqliteNoticeRecoverWal
+  | SQLiteNoticeRecoverRollback
+  | SQLiteNoticeRecoverWal
   // Extended - READONLY
-  | SqliteReadonlyCantinit
-  | SqliteReadonlyCantlock
-  | SqliteReadonlyDbmoved
-  | SqliteReadonlyDirectory
-  | SqliteReadonlyRecovery
-  | SqliteReadonlyRollback
+  | SQLiteReadonlyCantinit
+  | SQLiteReadonlyCantlock
+  | SQLiteReadonlyDbmoved
+  | SQLiteReadonlyDirectory
+  | SQLiteReadonlyRecovery
+  | SQLiteReadonlyRollback
   // Extended - WARNING
-  | SqliteWarningAutoindex
+  | SQLiteWarningAutoindex
   // Unknown
-  | SqliteUnknownError;
+  | SQLiteUnknownError;
 
 // =============================================================================
 // Helper Functions
@@ -632,7 +632,7 @@ export type SqliteErrorType =
 /**
  * Type guard to check if an error is a SQLite error with a _tag.
  */
-export const isSqliteError = (error: unknown): error is SqliteErrorType => {
+export const isSQLiteError = (error: unknown): error is SQLiteErrorType => {
   return (
     typeof error === "object" &&
     error !== null &&
@@ -645,7 +645,7 @@ export const isSqliteError = (error: unknown): error is SqliteErrorType => {
 /**
  * Check if the error is retryable (busy or locked errors).
  */
-export const isRetryable = (e: SqliteErrorType): boolean => {
+export const isRetryable = (e: SQLiteErrorType): boolean => {
   switch (e._tag) {
     case "SQLITE_BUSY":
     case "SQLITE_BUSY_RECOVERY":
@@ -667,238 +667,238 @@ export const parseError = (
   code: string | undefined,
   message: string,
   cause?: unknown,
-): SqliteErrorType => {
+): SQLiteErrorType => {
   switch (code) {
     // Primary result codes
     case "SQLITE_ERROR":
-      return new SqliteError({ message, cause });
+      return new SQLiteError({ message, cause });
     case "SQLITE_INTERNAL":
-      return new SqliteInternal({ message, cause });
+      return new SQLiteInternal({ message, cause });
     case "SQLITE_PERM":
-      return new SqlitePerm({ message, cause });
+      return new SQLitePerm({ message, cause });
     case "SQLITE_ABORT":
-      return new SqliteAbort({ message, cause });
+      return new SQLiteAbort({ message, cause });
     case "SQLITE_BUSY":
-      return new SqliteBusy({ message, cause });
+      return new SQLiteBusy({ message, cause });
     case "SQLITE_LOCKED":
-      return new SqliteLocked({ message, cause });
+      return new SQLiteLocked({ message, cause });
     case "SQLITE_NOMEM":
-      return new SqliteNomem({ message, cause });
+      return new SQLiteNomem({ message, cause });
     case "SQLITE_READONLY":
-      return new SqliteReadonly({ message, cause });
+      return new SQLiteReadonly({ message, cause });
     case "SQLITE_INTERRUPT":
-      return new SqliteInterrupt({ message, cause });
+      return new SQLiteInterrupt({ message, cause });
     case "SQLITE_IOERR":
-      return new SqliteIoerr({ message, cause });
+      return new SQLiteIoerr({ message, cause });
     case "SQLITE_CORRUPT":
-      return new SqliteCorrupt({ message, cause });
+      return new SQLiteCorrupt({ message, cause });
     case "SQLITE_NOTFOUND":
-      return new SqliteNotfound({ message, cause });
+      return new SQLiteNotfound({ message, cause });
     case "SQLITE_FULL":
-      return new SqliteFull({ message, cause });
+      return new SQLiteFull({ message, cause });
     case "SQLITE_CANTOPEN":
-      return new SqliteCantopen({ message, cause });
+      return new SQLiteCantopen({ message, cause });
     case "SQLITE_PROTOCOL":
-      return new SqliteProtocol({ message, cause });
+      return new SQLiteProtocol({ message, cause });
     case "SQLITE_EMPTY":
-      return new SqliteEmpty({ message, cause });
+      return new SQLiteEmpty({ message, cause });
     case "SQLITE_SCHEMA":
-      return new SqliteSchema({ message, cause });
+      return new SQLiteSchema({ message, cause });
     case "SQLITE_TOOBIG":
-      return new SqliteToobig({ message, cause });
+      return new SQLiteToobig({ message, cause });
     case "SQLITE_CONSTRAINT":
-      return new SqliteConstraint({ message, cause });
+      return new SQLiteConstraint({ message, cause });
     case "SQLITE_MISMATCH":
-      return new SqliteMismatch({ message, cause });
+      return new SQLiteMismatch({ message, cause });
     case "SQLITE_MISUSE":
-      return new SqliteMisuse({ message, cause });
+      return new SQLiteMisuse({ message, cause });
     case "SQLITE_NOLFS":
-      return new SqliteNolfs({ message, cause });
+      return new SQLiteNolfs({ message, cause });
     case "SQLITE_AUTH":
-      return new SqliteAuth({ message, cause });
+      return new SQLiteAuth({ message, cause });
     case "SQLITE_FORMAT":
-      return new SqliteFormat({ message, cause });
+      return new SQLiteFormat({ message, cause });
     case "SQLITE_RANGE":
-      return new SqliteRange({ message, cause });
+      return new SQLiteRange({ message, cause });
     case "SQLITE_NOTADB":
-      return new SqliteNotadb({ message, cause });
+      return new SQLiteNotadb({ message, cause });
     case "SQLITE_NOTICE":
-      return new SqliteNotice({ message, cause });
+      return new SQLiteNotice({ message, cause });
     case "SQLITE_WARNING":
-      return new SqliteWarning({ message, cause });
+      return new SQLiteWarning({ message, cause });
 
     // Extended - ABORT
     case "SQLITE_ABORT_ROLLBACK":
-      return new SqliteAbortRollback({ message, cause });
+      return new SQLiteAbortRollback({ message, cause });
 
     // Extended - AUTH
     case "SQLITE_AUTH_USER":
-      return new SqliteAuthUser({ message, cause });
+      return new SQLiteAuthUser({ message, cause });
 
     // Extended - BUSY
     case "SQLITE_BUSY_RECOVERY":
-      return new SqliteBusyRecovery({ message, cause });
+      return new SQLiteBusyRecovery({ message, cause });
     case "SQLITE_BUSY_SNAPSHOT":
-      return new SqliteBusySnapshot({ message, cause });
+      return new SQLiteBusySnapshot({ message, cause });
     case "SQLITE_BUSY_TIMEOUT":
-      return new SqliteBusyTimeout({ message, cause });
+      return new SQLiteBusyTimeout({ message, cause });
 
     // Extended - CANTOPEN
     case "SQLITE_CANTOPEN_CONVPATH":
-      return new SqliteCantopenConvpath({ message, cause });
+      return new SQLiteCantopenConvpath({ message, cause });
     case "SQLITE_CANTOPEN_DIRTYWAL":
-      return new SqliteCantopenDirtywal({ message, cause });
+      return new SQLiteCantopenDirtywal({ message, cause });
     case "SQLITE_CANTOPEN_FULLPATH":
-      return new SqliteCantopenFullpath({ message, cause });
+      return new SQLiteCantopenFullpath({ message, cause });
     case "SQLITE_CANTOPEN_ISDIR":
-      return new SqliteCantopenIsdir({ message, cause });
+      return new SQLiteCantopenIsdir({ message, cause });
     case "SQLITE_CANTOPEN_NOTEMPDIR":
-      return new SqliteCantopenNotempdir({ message, cause });
+      return new SQLiteCantopenNotempdir({ message, cause });
     case "SQLITE_CANTOPEN_SYMLINK":
-      return new SqliteCantopenSymlink({ message, cause });
+      return new SQLiteCantopenSymlink({ message, cause });
 
     // Extended - CONSTRAINT
     case "SQLITE_CONSTRAINT_CHECK":
-      return new SqliteConstraintCheck({ message, cause });
+      return new SQLiteConstraintCheck({ message, cause });
     case "SQLITE_CONSTRAINT_COMMITHOOK":
-      return new SqliteConstraintCommithook({ message, cause });
+      return new SQLiteConstraintCommithook({ message, cause });
     case "SQLITE_CONSTRAINT_DATATYPE":
-      return new SqliteConstraintDatatype({ message, cause });
+      return new SQLiteConstraintDatatype({ message, cause });
     case "SQLITE_CONSTRAINT_FOREIGNKEY":
-      return new SqliteConstraintForeignkey({ message, cause });
+      return new SQLiteConstraintForeignkey({ message, cause });
     case "SQLITE_CONSTRAINT_FUNCTION":
-      return new SqliteConstraintFunction({ message, cause });
+      return new SQLiteConstraintFunction({ message, cause });
     case "SQLITE_CONSTRAINT_NOTNULL":
-      return new SqliteConstraintNotnull({ message, cause });
+      return new SQLiteConstraintNotnull({ message, cause });
     case "SQLITE_CONSTRAINT_PINNED":
-      return new SqliteConstraintPinned({ message, cause });
+      return new SQLiteConstraintPinned({ message, cause });
     case "SQLITE_CONSTRAINT_PRIMARYKEY":
-      return new SqliteConstraintPrimarykey({ message, cause });
+      return new SQLiteConstraintPrimarykey({ message, cause });
     case "SQLITE_CONSTRAINT_ROWID":
-      return new SqliteConstraintRowid({ message, cause });
+      return new SQLiteConstraintRowid({ message, cause });
     case "SQLITE_CONSTRAINT_TRIGGER":
-      return new SqliteConstraintTrigger({ message, cause });
+      return new SQLiteConstraintTrigger({ message, cause });
     case "SQLITE_CONSTRAINT_UNIQUE":
-      return new SqliteConstraintUnique({ message, cause });
+      return new SQLiteConstraintUnique({ message, cause });
     case "SQLITE_CONSTRAINT_VTAB":
-      return new SqliteConstraintVtab({ message, cause });
+      return new SQLiteConstraintVtab({ message, cause });
 
     // Extended - CORRUPT
     case "SQLITE_CORRUPT_INDEX":
-      return new SqliteCorruptIndex({ message, cause });
+      return new SQLiteCorruptIndex({ message, cause });
     case "SQLITE_CORRUPT_SEQUENCE":
-      return new SqliteCorruptSequence({ message, cause });
+      return new SQLiteCorruptSequence({ message, cause });
     case "SQLITE_CORRUPT_VTAB":
-      return new SqliteCorruptVtab({ message, cause });
+      return new SQLiteCorruptVtab({ message, cause });
 
     // Extended - ERROR
     case "SQLITE_ERROR_MISSING_COLLSEQ":
-      return new SqliteErrorMissingCollseq({ message, cause });
+      return new SQLiteErrorMissingCollseq({ message, cause });
     case "SQLITE_ERROR_RETRY":
-      return new SqliteErrorRetry({ message, cause });
+      return new SQLiteErrorRetry({ message, cause });
     case "SQLITE_ERROR_SNAPSHOT":
-      return new SqliteErrorSnapshot({ message, cause });
+      return new SQLiteErrorSnapshot({ message, cause });
 
     // Extended - IOERR
     case "SQLITE_IOERR_ACCESS":
-      return new SqliteIoerrAccess({ message, cause });
+      return new SQLiteIoerrAccess({ message, cause });
     case "SQLITE_IOERR_AUTH":
-      return new SqliteIoerrAuth({ message, cause });
+      return new SQLiteIoerrAuth({ message, cause });
     case "SQLITE_IOERR_BEGIN_ATOMIC":
-      return new SqliteIoerrBeginAtomic({ message, cause });
+      return new SQLiteIoerrBeginAtomic({ message, cause });
     case "SQLITE_IOERR_BLOCKED":
-      return new SqliteIoerrBlocked({ message, cause });
+      return new SQLiteIoerrBlocked({ message, cause });
     case "SQLITE_IOERR_CHECKRESERVEDLOCK":
-      return new SqliteIoerrCheckreservedlock({ message, cause });
+      return new SQLiteIoerrCheckreservedlock({ message, cause });
     case "SQLITE_IOERR_CLOSE":
-      return new SqliteIoerrClose({ message, cause });
+      return new SQLiteIoerrClose({ message, cause });
     case "SQLITE_IOERR_COMMIT_ATOMIC":
-      return new SqliteIoerrCommitAtomic({ message, cause });
+      return new SQLiteIoerrCommitAtomic({ message, cause });
     case "SQLITE_IOERR_CONVPATH":
-      return new SqliteIoerrConvpath({ message, cause });
+      return new SQLiteIoerrConvpath({ message, cause });
     case "SQLITE_IOERR_CORRUPTFS":
-      return new SqliteIoerrCorruptfs({ message, cause });
+      return new SQLiteIoerrCorruptfs({ message, cause });
     case "SQLITE_IOERR_DATA":
-      return new SqliteIoerrData({ message, cause });
+      return new SQLiteIoerrData({ message, cause });
     case "SQLITE_IOERR_DELETE":
-      return new SqliteIoerrDelete({ message, cause });
+      return new SQLiteIoerrDelete({ message, cause });
     case "SQLITE_IOERR_DELETE_NOENT":
-      return new SqliteIoerrDeleteNoent({ message, cause });
+      return new SQLiteIoerrDeleteNoent({ message, cause });
     case "SQLITE_IOERR_DIR_CLOSE":
-      return new SqliteIoerrDirClose({ message, cause });
+      return new SQLiteIoerrDirClose({ message, cause });
     case "SQLITE_IOERR_DIR_FSYNC":
-      return new SqliteIoerrDirFsync({ message, cause });
+      return new SQLiteIoerrDirFsync({ message, cause });
     case "SQLITE_IOERR_FSTAT":
-      return new SqliteIoerrFstat({ message, cause });
+      return new SQLiteIoerrFstat({ message, cause });
     case "SQLITE_IOERR_FSYNC":
-      return new SqliteIoerrFsync({ message, cause });
+      return new SQLiteIoerrFsync({ message, cause });
     case "SQLITE_IOERR_GETTEMPPATH":
-      return new SqliteIoerrGettemppath({ message, cause });
+      return new SQLiteIoerrGettemppath({ message, cause });
     case "SQLITE_IOERR_LOCK":
-      return new SqliteIoerrLock({ message, cause });
+      return new SQLiteIoerrLock({ message, cause });
     case "SQLITE_IOERR_MMAP":
-      return new SqliteIoerrMmap({ message, cause });
+      return new SQLiteIoerrMmap({ message, cause });
     case "SQLITE_IOERR_NOMEM":
-      return new SqliteIoerrNomem({ message, cause });
+      return new SQLiteIoerrNomem({ message, cause });
     case "SQLITE_IOERR_RDLOCK":
-      return new SqliteIoerrRdlock({ message, cause });
+      return new SQLiteIoerrRdlock({ message, cause });
     case "SQLITE_IOERR_READ":
-      return new SqliteIoerrRead({ message, cause });
+      return new SQLiteIoerrRead({ message, cause });
     case "SQLITE_IOERR_ROLLBACK_ATOMIC":
-      return new SqliteIoerrRollbackAtomic({ message, cause });
+      return new SQLiteIoerrRollbackAtomic({ message, cause });
     case "SQLITE_IOERR_SEEK":
-      return new SqliteIoerrSeek({ message, cause });
+      return new SQLiteIoerrSeek({ message, cause });
     case "SQLITE_IOERR_SHMLOCK":
-      return new SqliteIoerrShmlock({ message, cause });
+      return new SQLiteIoerrShmlock({ message, cause });
     case "SQLITE_IOERR_SHMMAP":
-      return new SqliteIoerrShmmap({ message, cause });
+      return new SQLiteIoerrShmmap({ message, cause });
     case "SQLITE_IOERR_SHMOPEN":
-      return new SqliteIoerrShmopen({ message, cause });
+      return new SQLiteIoerrShmopen({ message, cause });
     case "SQLITE_IOERR_SHMSIZE":
-      return new SqliteIoerrShmsize({ message, cause });
+      return new SQLiteIoerrShmsize({ message, cause });
     case "SQLITE_IOERR_SHORT_READ":
-      return new SqliteIoerrShortRead({ message, cause });
+      return new SQLiteIoerrShortRead({ message, cause });
     case "SQLITE_IOERR_TRUNCATE":
-      return new SqliteIoerrTruncate({ message, cause });
+      return new SQLiteIoerrTruncate({ message, cause });
     case "SQLITE_IOERR_UNLOCK":
-      return new SqliteIoerrUnlock({ message, cause });
+      return new SQLiteIoerrUnlock({ message, cause });
     case "SQLITE_IOERR_VNODE":
-      return new SqliteIoerrVnode({ message, cause });
+      return new SQLiteIoerrVnode({ message, cause });
     case "SQLITE_IOERR_WRITE":
-      return new SqliteIoerrWrite({ message, cause });
+      return new SQLiteIoerrWrite({ message, cause });
 
     // Extended - LOCKED
     case "SQLITE_LOCKED_SHAREDCACHE":
-      return new SqliteLockedSharedcache({ message, cause });
+      return new SQLiteLockedSharedcache({ message, cause });
     case "SQLITE_LOCKED_VTAB":
-      return new SqliteLockedVtab({ message, cause });
+      return new SQLiteLockedVtab({ message, cause });
 
     // Extended - NOTICE
     case "SQLITE_NOTICE_RECOVER_ROLLBACK":
-      return new SqliteNoticeRecoverRollback({ message, cause });
+      return new SQLiteNoticeRecoverRollback({ message, cause });
     case "SQLITE_NOTICE_RECOVER_WAL":
-      return new SqliteNoticeRecoverWal({ message, cause });
+      return new SQLiteNoticeRecoverWal({ message, cause });
 
     // Extended - READONLY
     case "SQLITE_READONLY_CANTINIT":
-      return new SqliteReadonlyCantinit({ message, cause });
+      return new SQLiteReadonlyCantinit({ message, cause });
     case "SQLITE_READONLY_CANTLOCK":
-      return new SqliteReadonlyCantlock({ message, cause });
+      return new SQLiteReadonlyCantlock({ message, cause });
     case "SQLITE_READONLY_DBMOVED":
-      return new SqliteReadonlyDbmoved({ message, cause });
+      return new SQLiteReadonlyDbmoved({ message, cause });
     case "SQLITE_READONLY_DIRECTORY":
-      return new SqliteReadonlyDirectory({ message, cause });
+      return new SQLiteReadonlyDirectory({ message, cause });
     case "SQLITE_READONLY_RECOVERY":
-      return new SqliteReadonlyRecovery({ message, cause });
+      return new SQLiteReadonlyRecovery({ message, cause });
     case "SQLITE_READONLY_ROLLBACK":
-      return new SqliteReadonlyRollback({ message, cause });
+      return new SQLiteReadonlyRollback({ message, cause });
 
     // Extended - WARNING
     case "SQLITE_WARNING_AUTOINDEX":
-      return new SqliteWarningAutoindex({ message, cause });
+      return new SQLiteWarningAutoindex({ message, cause });
 
     // Unknown/default
     default:
-      return new SqliteUnknownError({ message, cause, code });
+      return new SQLiteUnknownError({ message, cause, code });
   }
 };

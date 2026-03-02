@@ -1,3 +1,5 @@
+import type { RemovalPolicy } from "../RemovalPolicy.ts";
+
 export type ResourceState =
   | CreatingResourceState
   | CreatedResourceState
@@ -30,6 +32,8 @@ interface BaseResourceState {
   props?: Props;
   /** The output attributes of this Resource (if it has been created) */
   attr?: Attr;
+  /** The removal policy of the resource */
+  removalPolicy: RemovalPolicy["Service"];
 }
 
 export interface CreatingResourceState extends BaseResourceState {

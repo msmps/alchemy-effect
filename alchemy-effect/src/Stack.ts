@@ -3,6 +3,7 @@ import { FileSystem } from "effect/FileSystem";
 import { Path } from "effect/Path";
 import * as ServiceMap from "effect/ServiceMap";
 import type { HttpClient } from "effect/unstable/http/HttpClient";
+import type { Binding } from "./Binding.ts";
 import { DotAlchemy } from "./Config.ts";
 import type { ResourceLike } from "./Resource.ts";
 import { Stage } from "./Stage.ts";
@@ -28,7 +29,7 @@ export interface StackSpec<Output = any> {
     [logicalId: string]: ResourceLike;
   };
   bindings: {
-    [logicalId: string]: any[];
+    [logicalId: string]: Binding[];
   };
   output: Output;
 }

@@ -1,18 +1,18 @@
 import type { Client, InArgs, ResultSet, Row } from "@libsql/client";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Sqlite } from "./SQLite.ts";
+import { SQLite } from "./SQLite.ts";
 import type { SQLiteConnection } from "./SQLiteConnection.ts";
 import { parseError } from "./SQLiteError.ts";
 import type { SQLiteStatement } from "./SQLiteStatement.ts";
 
 /**
- * Layer that provides the Sqlite service using libsql.
+ * Layer that provides the SQLite service using libsql.
  *
  * Note: This layer requires the @libsql/client package to be installed.
  * Install with: bun add @libsql/client
  */
-export const libSQL: Layer.Layer<Sqlite> = Layer.sync(Sqlite, () => ({
+export const libSQL: Layer.Layer<SQLite> = Layer.sync(SQLite, () => ({
   open: (path: string) =>
     Effect.tryPromise({
       try: async () => {
@@ -74,7 +74,7 @@ export const fromClient = (
         parseError(extractErrorCode(e), `Transaction failed: ${e}`, e),
     }) as Effect.Effect<
       A,
-      E | import("./SQLiteError.ts").SqliteErrorType,
+      E | import("./SQLiteError.ts").SQLiteErrorType,
       never
     >,
 
@@ -96,7 +96,7 @@ export const fromClient = (
 });
 
 /**
- * Wrap a libsql statement in the SqliteStatement interface.
+ * Wrap a libsql statement in the SQLiteStatement interface.
  *
  * Unlike bun:sqlite, libsql doesn't have a prepared statement object.
  * Instead, we store the SQL and execute it with parameters each time.

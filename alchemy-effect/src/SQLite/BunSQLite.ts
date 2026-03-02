@@ -1,15 +1,15 @@
 import type { Database, SQLQueryBindings, Statement } from "bun:sqlite";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Sqlite } from "./SQLite.ts";
+import { SQLite } from "./SQLite.ts";
 import type { SQLiteConnection } from "./SQLiteConnection.ts";
 import { parseError } from "./SQLiteError.ts";
 import type { SQLiteStatement } from "./SQLiteStatement.ts";
 
 /**
- * Layer that provides the Sqlite service using Bun's native SQLite.
+ * Layer that provides the SQLite service using Bun's native SQLite.
  */
-export const BunSQLite: Layer.Layer<Sqlite> = Layer.sync(Sqlite, () => ({
+export const BunSQLite: Layer.Layer<SQLite> = Layer.sync(SQLite, () => ({
   open: (path: string) =>
     Effect.gen(function* () {
       const { Database } = yield* Effect.promise(() => import("bun:sqlite"));
@@ -23,7 +23,7 @@ export const BunSQLite: Layer.Layer<Sqlite> = Layer.sync(Sqlite, () => ({
 }));
 
 /**
- * Create a SqliteConnection from a Bun SQLite Database.
+ * Create a SQLiteConnection from a Bun SQLite Database.
  */
 export const fromDatabase = (db: Database): SQLiteConnection => ({
   prepare: <R>(sql: string) =>

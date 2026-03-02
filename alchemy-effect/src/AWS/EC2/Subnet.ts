@@ -3,7 +3,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
-import type { ScopedPlanStatusSession } from "../../Cli/CLI.ts";
+import type { ScopedPlanStatusSession } from "../../Cli/Cli.ts";
 import { somePropsAreDifferent } from "../../Diff.ts";
 import type { Input } from "../../Input.ts";
 import { Resource } from "../../Resource.ts";

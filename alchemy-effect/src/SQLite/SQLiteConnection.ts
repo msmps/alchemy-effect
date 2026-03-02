@@ -1,5 +1,5 @@
 import type * as Effect from "effect/Effect";
-import type { SqliteErrorType } from "./SQLiteError.ts";
+import type { SQLiteErrorType } from "./SQLiteError.ts";
 import type { SQLiteStatement } from "./SQLiteStatement.ts";
 
 /**
@@ -14,12 +14,12 @@ export interface SQLiteConnection {
    */
   prepare<R = unknown>(
     sql: string,
-  ): Effect.Effect<SQLiteStatement<R>, SqliteErrorType>;
+  ): Effect.Effect<SQLiteStatement<R>, SQLiteErrorType>;
 
   /**
    * Execute raw SQL statements (e.g., for DDL operations).
    */
-  exec(sql: string): Effect.Effect<void, SqliteErrorType>;
+  exec(sql: string): Effect.Effect<void, SQLiteErrorType>;
 
   /**
    * Execute a function within a transaction.
@@ -35,7 +35,7 @@ export interface SQLiteConnection {
    */
   transaction<A, E>(
     fn: (conn: SQLiteConnection) => Effect.Effect<A, E, never>,
-  ): Effect.Effect<A, E | SqliteErrorType, never>;
+  ): Effect.Effect<A, E | SQLiteErrorType, never>;
 
   /**
    * Execute a batch of SQL statements atomically.
@@ -51,5 +51,5 @@ export interface SQLiteConnection {
    */
   batch(
     statements: Array<{ sql: string; params?: unknown[] }>,
-  ): Effect.Effect<void, SqliteErrorType>;
+  ): Effect.Effect<void, SQLiteErrorType>;
 }

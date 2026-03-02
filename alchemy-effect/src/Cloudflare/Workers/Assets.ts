@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
 import * as ServiceMap from "effect/ServiceMap";
-import type { ScopedPlanStatusSession } from "../../Cli/CLI.ts";
+import type { ScopedPlanStatusSession } from "../../Cli/Cli.ts";
 import { sha256 } from "../../Util/index.ts";
 import { CloudflareApi, CloudflareApiError } from "../CloudflareApi.ts";
 import { Worker } from "./Worker.ts";

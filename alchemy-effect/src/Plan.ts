@@ -2,6 +2,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { asEffect } from ".//Util/types.ts";
+import type { Binding } from "./Binding.ts";
 import type { NoopDiff, UpdateDiff } from "./Diff.ts";
 import { InstanceId } from "./InstanceId.ts";
 import * as Output from "./Output.ts";
@@ -58,7 +59,7 @@ export interface BaseNode<
   resource: R;
   provider: ProviderService<R>;
   downstream: string[];
-  bindings: R["Binding"][];
+  bindings: Binding<R["Binding"]>[];
 }
 
 export interface Create<
@@ -153,6 +154,7 @@ export const make = <A>(
       resourceExpr: Output.ResourceExpr<any, any>,
     ): Effect.Effect<any> =>
       Effect.gen(function* () {
+        // @ts-expect-error
         return yield* (resolvedResources[resourceExpr.src.LogicalId] ??=
           yield* Effect.cached(
             Effect.gen(function* () {
@@ -621,6 +623,7 @@ export const make = <A>(
                     Props: oldState.props,
                     Binding: undefined!,
                     Provider: Provider(resourceType),
+                    RemovalPolicy: oldState.removalPolicy,
                   } as ResourceLike,
                   // TODO(sam): is it enough to just pass through oldState?
                   downstream: oldDownstreamDependencies[id] ?? [],

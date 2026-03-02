@@ -4,9 +4,9 @@ import type { Simplify } from "effect/Types";
 import {
   type PlanStatusSession,
   type ScopedPlanStatusSession,
-  CLI,
-} from "./Cli/CLI.ts";
-import type { ApplyStatus } from "./Cli/CLIEvent.ts";
+  Cli,
+} from "./Cli/Cli.ts";
+import type { ApplyStatus } from "./Cli/Event.ts";
 import type { Input } from "./Input.ts";
 import { generateInstanceId, InstanceId } from "./InstanceId.ts";
 import * as Output from "./Output.ts";
@@ -53,10 +53,10 @@ export const apply = <P extends Plan>(
 ): Effect.Effect<
   Input.Resolve<P["output"]>,
   Output.InvalidReferenceError | Output.MissingSourceError | StateStoreError,
-  CLI | State | Stack | Stage
+  Cli | State | Stack | Stage
 > =>
   Effect.gen(function* () {
-    const cli = yield* CLI;
+    const cli = yield* Cli;
     const session = yield* cli.startApplySession(plan);
 
     // 1. expand the graph (create new resources, update existing and create replacements)
@@ -164,6 +164,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                 providerVersion: node.provider.version ?? 0,
                 resourceType: node.resource.Type,
                 bindings: node.bindings,
+                removalPolicy: node.resource.RemovalPolicy,
               });
               return instanceId;
             } else if (node.action === "replace") {
@@ -186,6 +187,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                 bindings: node.bindings,
                 old: node.state,
                 deleteFirst: node.deleteFirst,
+                removalPolicy: node.resource.RemovalPolicy,
               });
               return instanceId;
             } else if (node.state?.instanceId) {
@@ -217,6 +219,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                   // wrong:
                   bindings: node.bindings,
                   downstream: node.downstream,
+                  removalPolicy: node.resource.RemovalPolicy,
                 });
 
               if (!node.state) {
@@ -268,6 +271,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                 bindings: bindingOutputs,
                 providerVersion: node.provider.version ?? 0,
                 downstream: node.downstream,
+                removalPolicy: node.resource.RemovalPolicy,
               });
 
               yield* report("created");
@@ -310,6 +314,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                       node.state.status === "updating"
                         ? node.state.old
                         : node.state,
+                    removalPolicy: node.resource.RemovalPolicy,
                   });
 
               yield* report("updating");
@@ -354,6 +359,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                   })),
                   providerVersion: node.provider.version ?? 0,
                   downstream: node.downstream,
+                  removalPolicy: node.resource.RemovalPolicy,
                 });
               }
 
@@ -380,6 +386,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                     deleteFirst: node.deleteFirst,
                     old: node.state,
                     downstream: node.downstream,
+                    removalPolicy: node.resource.RemovalPolicy,
                   }),
                 );
               } else {
@@ -421,6 +428,7 @@ const expandAndPivot = Effect.fnUntraced(function* (
                   downstream: node.downstream,
                   old: state.old,
                   deleteFirst: node.deleteFirst,
+                  removalPolicy: node.resource.RemovalPolicy,
                 } as S);
 
               let attr: any;
@@ -589,6 +597,15 @@ const collectGarbage = Effect.fnUntraced(function* (
           yield* report("deleting");
 
           if (isDeleteNode(node)) {
+            if (node.resource.RemovalPolicy === "retain") {
+              yield* state.delete({
+                stack: stackName,
+                stage: stage,
+                logicalId,
+              });
+              yield* report("deleted");
+              return;
+            }
             yield* commit<DeletingResourceState>({
               status: "deleting",
               logicalId,
@@ -599,6 +616,7 @@ const collectGarbage = Effect.fnUntraced(function* (
               downstream,
               providerVersion: provider.version ?? 0,
               bindings: node.bindings,
+              removalPolicy: node.resource.RemovalPolicy,
             });
           }
 
@@ -632,6 +650,7 @@ const collectGarbage = Effect.fnUntraced(function* (
               providerVersion: provider.version ?? 0,
               downstream: node.downstream,
               bindings: node.bindings,
+              removalPolicy: node.removalPolicy,
             });
             yield* report("replaced");
           }

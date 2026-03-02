@@ -2,8 +2,7 @@
 import React, { useMemo } from "react";
 
 import { Box, Text } from "ink";
-import type { Capability } from "../../../Capability.ts";
-import type { IPlan as AlchemyPlan, BindNode, CRUD } from "../../../plan.ts";
+import type { Plan as AlchemyPlan, CRUD } from "../../Plan.ts";
 
 export interface PlanProps {
   plan: AlchemyPlan;

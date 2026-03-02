@@ -18,7 +18,7 @@ import * as AWS from "../AWS/index.ts";
 import { apply } from "../Apply.ts";
 import * as Credentials from "../AWS/Credentials.ts";
 import * as Region from "../AWS/Region.ts";
-import type { CLI } from "../Cli/index.ts";
+import type { Cli } from "../Cli/index.ts";
 import { DotAlchemy, dotAlchemy } from "../Config.ts";
 import { ExecutionContext } from "../Executable.ts";
 import * as Plan from "../Plan.ts";
@@ -61,7 +61,7 @@ type Provided =
   | Path.Path
   | aws.Credentials.Credentials
   | aws.Region.Region
-  | CLI
+  | Cli
   | ExecutionContext
   | AWS.StageConfig;
 

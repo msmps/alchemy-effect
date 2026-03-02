@@ -3,6 +3,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { pipeArguments, type Pipeable } from "effect/Pipeable";
 import { SingleShotGen } from "effect/Utils";
+import { PolicyContext } from "./Binding.ts";
 import type { Input } from "./Input.ts";
 import type { InstanceId } from "./InstanceId.ts";
 import * as Output from "./Output.ts";
@@ -84,7 +85,13 @@ export const Resource = <R extends ResourceLike>(
         ),
         // Attributes: undefined!,
         // Binding: undefined!,
-        bind: (data: any) => (stack.bindings[id] ??= []).push(data),
+        bind: Effect.fn(function* (data: any) {
+          const target = yield* PolicyContext;
+          (stack.bindings[id] ??= []).push({
+            data,
+            target,
+          });
+        }),
       } as any,
       {
         get: (target, prop) =>

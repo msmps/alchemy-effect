@@ -2,12 +2,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { Box, Text } from "ink";
-import type { IPlan } from "../../../plan.ts";
-import type {
-  ApplyEvent,
-  ApplyStatus,
-  StatusChangeEvent,
-} from "../CLIEvent.ts";
+import type { Plan } from "../../Plan.ts";
+import type { ApplyEvent, ApplyStatus, StatusChangeEvent } from "../Event.ts";
 
 interface ProgressEventSource {
   subscribe(listener: (event: ApplyEvent) => void): () => void;
@@ -22,7 +18,7 @@ interface PlanTask extends Required<
 
 interface PlanProgressProps {
   source: ProgressEventSource;
-  plan: IPlan;
+  plan: Plan;
 }
 
 export function PlanProgress(props: PlanProgressProps): React.JSX.Element {

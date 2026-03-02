@@ -4,7 +4,7 @@ import { Region } from "distilled-aws/Region";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
-import type { ScopedPlanStatusSession } from "../../Cli/CLI.ts";
+import type { ScopedPlanStatusSession } from "../../Cli/Cli.ts";
 import { Resource } from "../../Resource.ts";
 import { createInternalTags, createTagsList } from "../../Tags.ts";
 import type { AccountID } from "../Account.ts";

@@ -3,7 +3,7 @@ import * as ec2 from "distilled-aws/ec2";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 
-import type { ScopedPlanStatusSession } from "../../Cli/CLI.ts";
+import type { ScopedPlanStatusSession } from "../../Cli/Cli.ts";
 import { Resource } from "../../Resource.ts";
 import type { RouteTableId } from "./RouteTable.ts";
 import type { SubnetId } from "./Subnet.ts";

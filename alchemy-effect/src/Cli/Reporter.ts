@@ -1,8 +1,8 @@
-import * as Context from "effect/Context";
+import * as ServiceMap from "effect/ServiceMap";
 
-export class Reporter extends Context.Tag("Reporter")<
+export class Reporter extends ServiceMap.Service<
   Reporter,
   {
     report: (event: Event) => void;
   }
->() {}
+>()("Reporter") {}
