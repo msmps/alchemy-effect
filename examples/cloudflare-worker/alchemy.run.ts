@@ -7,9 +7,9 @@ const stack = Effect.gen(function* () {
   const api = yield* Api;
   // const sandbox = yield* Sandbox;
 
-  return api.url;
-});
+  return {
+    url: api.url.as<string>(),
+  };
+}).pipe(Stack.make("CloudflareWorker", Cloudflare.providers()));
 
-export default stack.pipe(
-  Stack.make("CloudflareWorker", Cloudflare.providers()),
-);
+export default stack;
