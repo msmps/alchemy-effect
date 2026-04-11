@@ -451,12 +451,30 @@ export const WorkerProvider = () =>
         `alchemy:id:${id}`,
       ];
 
-      const hasAlchemyWorkerTags = (
+      const isOwnedByDifferentStack = (
         id: string,
         tags: readonly string[] | undefined,
       ) => {
-        const actualTags = new Set(tags ?? []);
-        return createAlchemyWorkerTags(id).every((tag) => actualTags.has(tag));
+        const actualTags = (tags ?? []).filter((t) =>
+          t.startsWith("alchemy:"),
+        );
+        if (actualTags.length === 0) {
+          // No alchemy tags — likely created by us in a partially-failed
+          // deploy where the settings API didn't persist/return tags, or
+          // an unmanaged worker whose deterministic name collided.  Treat
+          // as adoptable so we can recover from "creating" state.
+          return false;
+        }
+        // Has alchemy tags — verify they match *this* stack/stage/resource.
+        const expected = new Set(createAlchemyWorkerTags(id));
+        return !actualTags
+          .filter(
+            (t) =>
+              t.startsWith("alchemy:stack:") ||
+              t.startsWith("alchemy:stage:") ||
+              t.startsWith("alchemy:id:"),
+          )
+          .every((tag) => expected.has(tag));
       };
 
       const prepareAssets = Effect.fnUntraced(function* (
@@ -1169,13 +1187,13 @@ ${[
             yield* Effect.logInfo(
               `Cloudflare Worker create: ${name} already exists`,
             );
-            if (!hasAlchemyWorkerTags(id, existingSettings.tags ?? [])) {
+            if (isOwnedByDifferentStack(id, existingSettings.tags ?? [])) {
               return yield* Effect.die(
-                `Worker "${name}" already exists but is not owned by this stack/stage/resource`,
+                `Worker "${name}" already exists but is owned by a different stack/stage/resource`,
               );
             }
             yield* Effect.logInfo(
-              `Cloudflare Worker create: adopting existing ${name} owned by this stack/stage/resource`,
+              `Cloudflare Worker create: adopting existing ${name}`,
             );
           }
           return yield* putWorker(
