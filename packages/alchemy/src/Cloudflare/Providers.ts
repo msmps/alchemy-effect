@@ -70,3 +70,8 @@ export const providers = () =>
     ),
     Layer.orDie,
   );
+
+/**
+ * Cloudflare account credentials and auth context.
+ */
+export const credentials = () => Account.fromStageConfig();
