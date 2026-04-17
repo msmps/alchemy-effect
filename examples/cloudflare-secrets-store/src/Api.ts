@@ -22,15 +22,20 @@ export default class Api extends Cloudflare.Worker<Api>()(
         const request = yield* HttpServerRequest;
 
         if (request.url === "/secret") {
-          const value = yield* secret
-            .get()
-            .pipe(
-              Effect.catchTag("SecretError", (err) =>
-                Effect.succeed(`Error: ${err.message}`),
+          return yield* secret.get().pipe(
+            Effect.map((value) => {
+              const masked = value.slice(0, 4) + "****";
+              return HttpServerResponse.text(`Secret (masked): ${masked}`);
+            }),
+            Effect.catchTag("SecretError", (err) =>
+              Effect.succeed(
+                HttpServerResponse.text(
+                  `Failed to read secret: ${err.message}`,
+                  { status: 500 },
+                ),
               ),
-            );
-          const masked = value.slice(0, 4) + "****";
-          return HttpServerResponse.text(`Secret (masked): ${masked}`);
+            ),
+          );
         }
 
         return HttpServerResponse.text(
