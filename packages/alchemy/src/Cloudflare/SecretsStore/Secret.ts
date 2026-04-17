@@ -1,6 +1,8 @@
 import * as secretsStore from "@distilled.cloud/cloudflare/secrets-store";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
+import * as Stream from "effect/Stream";
 import { isResolved } from "../../Diff.ts";
 import * as Provider from "../../Provider.ts";
 import { Resource } from "../../Resource.ts";
@@ -97,7 +99,7 @@ export const StoreSecretProvider = () =>
       const patchStoreSecret = yield* secretsStore.patchStoreSecret;
       const deleteStoreSecret = yield* secretsStore.deleteStoreSecret;
       const getStoreSecret = yield* secretsStore.getStoreSecret;
-      const listStoreSecrets = yield* secretsStore.listStoreSecrets;
+      const listStoreSecrets = secretsStore.listStoreSecrets;
 
       const arraysEqual = (a: string[], b: string[]) =>
         a.length === b.length && a.every((v, i) => v === b[i]);
@@ -200,18 +202,17 @@ export const StoreSecretProvider = () =>
           }
           if (!olds?.store) return undefined;
           const name = resolveName(id, olds.name);
-          const listed = yield* listStoreSecrets({
-            accountId: olds.store.accountId,
-            storeId: olds.store.storeId,
-          }).pipe(
-            Effect.catchTag("StoreNotFound", () =>
-              Effect.succeed({
-                result: [],
-                resultInfo: {},
-              } as any),
-            ),
-          );
-          const match = listed.result.find((s: any) => s.name === name);
+          const match = yield* listStoreSecrets
+            .items({
+              accountId: olds.store.accountId,
+              storeId: olds.store.storeId,
+            })
+            .pipe(
+              Stream.filter((s) => s.name === name),
+              Stream.runHead,
+              Effect.catchTag("StoreNotFound", () => Effect.succeedNone),
+              Effect.map(Option.getOrUndefined),
+            );
           if (!match) return undefined;
           return {
             secretId: match.id,
