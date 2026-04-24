@@ -1,9 +1,16 @@
-import { afterAll, beforeAll, deploy, destroy, expect, test } from "alchemy/Test/Bun";
+import Stack from "@/Cloudflare/StateStore/Stack.ts";
 import type { ResourceState } from "alchemy/State";
 import { REDACTED_MARKER } from "alchemy/State";
+import {
+  afterAll,
+  beforeAll,
+  deploy,
+  destroy,
+  expect,
+  test,
+} from "alchemy/Test/Bun";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import Stack from "../alchemy.run.ts";
 
 const stack = beforeAll(
   Effect.gen(function* () {
@@ -62,7 +69,10 @@ async function rpc<T = unknown>(
   token: string,
   method: Rpc,
   body: Record<string, unknown> = {},
-): Promise<{ status: number; body: { ok: boolean; result?: T; error?: { code: string; message: string } } }> {
+): Promise<{
+  status: number;
+  body: { ok: boolean; result?: T; error?: { code: string; message: string } };
+}> {
   const res = await fetch(`${baseUrl}/state/${method}`, {
     method: "POST",
     headers: {

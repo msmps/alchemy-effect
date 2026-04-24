@@ -13,10 +13,9 @@ import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
  * end up in the worker bundle. Keeping the worker entry lean avoids
  * "No such module 'sisteransi'" at deploy-time.
  */
-export default class TestWorker extends Cloudflare.Worker<TestWorker>()(
+export default Cloudflare.Worker(
   "TestWorker",
   {
-    name: "alchemy-state-store-test-worker",
     main: import.meta.path,
     url: true,
     compatibility: {
@@ -34,4 +33,4 @@ export default class TestWorker extends Cloudflare.Worker<TestWorker>()(
       }),
     };
   }),
-) {}
+);

@@ -171,7 +171,7 @@ const login = (profileName: string, config: HttpStateStoreAuthConfig) =>
         ),
       ),
       Match.when({ method: "cloudflare" }, () =>
-        loginWithCloudflare().pipe(Effect.asVoid),
+        loginWithCloudflare.pipe(Effect.asVoid),
       ),
       Match.exhaustive,
     )
@@ -233,7 +233,7 @@ const configureInteractive = (profileName: string) =>
       Match.value(method).pipe(
         Match.when("stored", () => loginStored(profileName)),
         Match.when("cloudflare", () =>
-          loginWithCloudflare().pipe(
+          loginWithCloudflare.pipe(
             Effect.map(() => ({ method: "cloudflare" as const })),
           ),
         ),
@@ -333,64 +333,63 @@ const readSecretViaEdge = (storeId: string, secretName: string) =>
  * `CloudflareEnvironment`, `Credentials`, `HttpClient`, and
  * `FileSystem`.
  */
-export const loginWithCloudflare = () =>
-  Effect.gen(function* () {
-    const profileName = yield* ALCHEMY_PROFILE;
-    const { accountId } = yield* CloudflareEnvironment;
+export const loginWithCloudflare = Effect.gen(function* () {
+  const profileName = yield* ALCHEMY_PROFILE;
+  const { accountId } = yield* CloudflareEnvironment;
 
-    // 1. Locate the single Secrets Store on the account.
-    const listStores = yield* secretsStore.listStores;
-    const stores = yield* listStores({ accountId });
-    const store = stores.result[0];
-    if (!store) {
-      return yield* Effect.fail(
-        new AuthError({
-          message:
-            "No Secrets Store found on this account. Deploy the state store first.",
-        }),
-      );
-    }
-
-    // 2. Fetch the auth-token value via an edge-preview worker.
-    const token = yield* readSecretViaEdge(
-      store.id,
-      STATE_STORE_AUTH_TOKEN_SECRET_NAME,
+  // 1. Locate the single Secrets Store on the account.
+  const listStores = yield* secretsStore.listStores;
+  const stores = yield* listStores({ accountId });
+  const store = stores.result[0];
+  if (!store) {
+    return yield* Effect.fail(
+      new AuthError({
+        message:
+          "No Secrets Store found on this account. Deploy the state store first.",
+      }),
     );
+  }
 
-    // 3. Derive the deployed worker URL.
-    const getSubdomain = yield* workers.getSubdomain;
-    const { subdomain } = yield* getSubdomain({ accountId });
-    const url = `https://${STATE_STORE_SCRIPT_NAME}.${subdomain}.workers.dev`;
+  // 2. Fetch the auth-token value via an edge-preview worker.
+  const token = yield* readSecretViaEdge(
+    store.id,
+    STATE_STORE_AUTH_TOKEN_SECRET_NAME,
+  );
 
-    // 4. Persist credentials. The profile entry is managed by
-    //    `loadOrConfigure` when this is invoked through `configure`.
-    yield* writeCredentials<HttpStateStoreStoredCredentials>(
-      profileName,
-      CREDENTIALS_FILE,
-      { url, token: token.trim() },
-    ).pipe(
-      Effect.mapError(
-        (e) =>
-          new AuthError({ message: "Failed to write credentials", cause: e }),
-      ),
-    );
+  // 3. Derive the deployed worker URL.
+  const getSubdomain = yield* workers.getSubdomain;
+  const { subdomain } = yield* getSubdomain({ accountId });
+  const url = `https://${STATE_STORE_SCRIPT_NAME}.${subdomain}.workers.dev`;
 
-    yield* Clank.success(
-      `HTTP state store credentials saved for '${profileName}'.`,
-    );
-    yield* Clank.info(`  url:     ${url}`);
-
-    return { method: "cloudflare" as const };
-  }).pipe(
-    Effect.catchTag("EdgeSessionError", (e) =>
-      Effect.fail(
-        new AuthError({
-          message: `Edge-preview secret read failed: ${e.message}`,
-          cause: e.cause,
-        }),
-      ),
+  // 4. Persist credentials. The profile entry is managed by
+  //    `loadOrConfigure` when this is invoked through `configure`.
+  yield* writeCredentials<HttpStateStoreStoredCredentials>(
+    profileName,
+    CREDENTIALS_FILE,
+    { url, token: token.trim() },
+  ).pipe(
+    Effect.mapError(
+      (e) =>
+        new AuthError({ message: "Failed to write credentials", cause: e }),
     ),
   );
+
+  yield* Clank.success(
+    `HTTP state store credentials saved for '${profileName}'.`,
+  );
+  yield* Clank.info(`  url:     ${url}`);
+
+  return { method: "cloudflare" as const };
+}).pipe(
+  Effect.catchTag("EdgeSessionError", (e) =>
+    Effect.fail(
+      new AuthError({
+        message: `Edge-preview secret read failed: ${e.message}`,
+        cause: e.cause,
+      }),
+    ),
+  ),
+);
 
 // -- pretty print --------------------------------------------------
 

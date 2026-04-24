@@ -7,124 +7,14 @@ import * as Layer from "effect/Layer";
 import * as HttpRouter from "effect/unstable/http/HttpRouter";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import StateStore, { ROOT_DO_NAME } from "./StateStore.ts";
+import crypto from "node:crypto";
+import StateStore from "./StateStore.ts";
 import { AuthToken } from "./Token.ts";
 
 class Unauthorized extends Data.TaggedError("Unauthorized")<{}> {}
 class BadRequest extends Data.TaggedError("BadRequest")<{
   readonly message: string;
 }> {}
-
-/**
- * Timing-safe string comparison using the Workers runtime's built-in
- * `crypto.subtle.timingSafeEqual`.
- *
- * @see https://developers.cloudflare.com/workers/examples/protect-against-timing-attacks/
- */
-const timingSafeEqual = (a: string, b: string): boolean => {
-  const encoder = new TextEncoder();
-  const aBytes = encoder.encode(a);
-  const bBytes = encoder.encode(b);
-  if (aBytes.byteLength !== bBytes.byteLength) return false;
-  return crypto.subtle.timingSafeEqual(aBytes, bBytes);
-};
-
-const errorResponse = (
-  code: string,
-  message: string,
-  status: number,
-): Effect.Effect<HttpServerResponse.HttpServerResponse, never, never> =>
-  HttpServerResponse.json(
-    { ok: false, error: { code, message } },
-    { status },
-  ).pipe(Effect.orDie);
-
-const okResponse = (
-  result: unknown,
-): Effect.Effect<HttpServerResponse.HttpServerResponse, never, never> =>
-  HttpServerResponse.json({ ok: true, result: result ?? null }).pipe(
-    Effect.orDie,
-  );
-
-const requireString = (
-  body: Record<string, unknown>,
-  field: string,
-): Effect.Effect<string, BadRequest> => {
-  const value = body[field];
-  return typeof value === "string" && value.length > 0
-    ? Effect.succeed(value)
-    : Effect.fail(
-        new BadRequest({
-          message: `field '${field}' is required and must be a non-empty string`,
-        }),
-      );
-};
-
-const requireObject = (
-  body: Record<string, unknown>,
-  field: string,
-): Effect.Effect<ResourceState, BadRequest> => {
-  const value = body[field];
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? Effect.succeed(value as ResourceState)
-    : Effect.fail(
-        new BadRequest({
-          message: `field '${field}' is required and must be an object`,
-        }),
-      );
-};
-
-/**
- * Parse the JSON body of the current request, normalising errors to
- * `BadRequest`. Reads `HttpServerRequest` from the Effect context.
- */
-const parseBody: Effect.Effect<
-  Record<string, unknown>,
-  BadRequest,
-  HttpServerRequest
-> = Effect.gen(function* () {
-  const request = yield* HttpServerRequest;
-  const text = yield* request.text.pipe(Effect.orDie);
-  return yield* Effect.try({
-    try: () => {
-      const body = text ? JSON.parse(text) : {};
-      if (body === null || typeof body !== "object" || Array.isArray(body)) {
-        throw new Error("expected JSON object body");
-      }
-      return body as Record<string, unknown>;
-    },
-    catch: (e) =>
-      new BadRequest({
-        message: e instanceof Error ? e.message : "invalid JSON body",
-      }),
-  });
-});
-
-/**
- * Wrap a handler so its tagged errors map to structured JSON
- * responses and any defect (e.g. from `Effect.orDie`ed DO calls)
- * returns a JSON 500 instead of Cloudflare's default plain-text error
- * page.
- *
- * Handlers declare their failure modes as `Unauthorized | BadRequest`
- * so `catchTag` can pattern-match concretely.
- */
-const wrap = <R>(
-  handler: Effect.Effect<
-    HttpServerResponse.HttpServerResponse,
-    Unauthorized | BadRequest,
-    R
-  >,
-): Effect.Effect<HttpServerResponse.HttpServerResponse, never, R> =>
-  handler.pipe(
-    Effect.catchTag("Unauthorized", () =>
-      errorResponse("unauthorized", "invalid bearer token", 401),
-    ),
-    Effect.catchTag("BadRequest", (e) =>
-      errorResponse("bad_request", e.message, 400),
-    ),
-    Effect.catchCause((cause) => errorResponse("internal", String(cause), 500)),
-  );
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",
@@ -170,7 +60,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
     // bound yet (`WorkerEnvironment` is undefined) and the call throws.
 
     /** DO instance that holds the stack-name index. */
-    const rootDO = () => stateStore.getByName(ROOT_DO_NAME);
+    const rootDO = () => stateStore.getByName(StateStore.ROOT_DO_NAME);
 
     /** DO instance for a specific stack. */
     const stackDO = (stack: string) => stateStore.getByName(stack);
@@ -306,3 +196,115 @@ export default class Api extends Cloudflare.Worker<Api>()(
     };
   }).pipe(Effect.provide(Layer.mergeAll(Cloudflare.SecretBindingLive))),
 ) {}
+
+/**
+ * Timing-safe string comparison using the Workers runtime's built-in
+ * `crypto.subtle.timingSafeEqual`.
+ *
+ * @see https://developers.cloudflare.com/workers/examples/protect-against-timing-attacks/
+ */
+const timingSafeEqual = (a: string, b: string): boolean => {
+  const encoder = new TextEncoder();
+  const aBytes = encoder.encode(a);
+  const bBytes = encoder.encode(b);
+  if (aBytes.byteLength !== bBytes.byteLength) return false;
+  // @ts-expect-error - TODO(sam)
+  return crypto.subtle.timingSafeEqual(aBytes, bBytes);
+};
+
+const errorResponse = (
+  code: string,
+  message: string,
+  status: number,
+): Effect.Effect<HttpServerResponse.HttpServerResponse, never, never> =>
+  HttpServerResponse.json(
+    { ok: false, error: { code, message } },
+    { status },
+  ).pipe(Effect.orDie);
+
+const okResponse = (
+  result: unknown,
+): Effect.Effect<HttpServerResponse.HttpServerResponse, never, never> =>
+  HttpServerResponse.json({ ok: true, result: result ?? null }).pipe(
+    Effect.orDie,
+  );
+
+const requireString = (
+  body: Record<string, unknown>,
+  field: string,
+): Effect.Effect<string, BadRequest> => {
+  const value = body[field];
+  return typeof value === "string" && value.length > 0
+    ? Effect.succeed(value)
+    : Effect.fail(
+        new BadRequest({
+          message: `field '${field}' is required and must be a non-empty string`,
+        }),
+      );
+};
+
+const requireObject = (
+  body: Record<string, unknown>,
+  field: string,
+): Effect.Effect<ResourceState, BadRequest> => {
+  const value = body[field];
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? Effect.succeed(value as ResourceState)
+    : Effect.fail(
+        new BadRequest({
+          message: `field '${field}' is required and must be an object`,
+        }),
+      );
+};
+
+/**
+ * Parse the JSON body of the current request, normalising errors to
+ * `BadRequest`. Reads `HttpServerRequest` from the Effect context.
+ */
+const parseBody: Effect.Effect<
+  Record<string, unknown>,
+  BadRequest,
+  HttpServerRequest
+> = Effect.gen(function* () {
+  const request = yield* HttpServerRequest;
+  const text = yield* request.text.pipe(Effect.orDie);
+  return yield* Effect.try({
+    try: () => {
+      const body = text ? JSON.parse(text) : {};
+      if (body === null || typeof body !== "object" || Array.isArray(body)) {
+        throw new Error("expected JSON object body");
+      }
+      return body as Record<string, unknown>;
+    },
+    catch: (e) =>
+      new BadRequest({
+        message: e instanceof Error ? e.message : "invalid JSON body",
+      }),
+  });
+});
+
+/**
+ * Wrap a handler so its tagged errors map to structured JSON
+ * responses and any defect (e.g. from `Effect.orDie`ed DO calls)
+ * returns a JSON 500 instead of Cloudflare's default plain-text error
+ * page.
+ *
+ * Handlers declare their failure modes as `Unauthorized | BadRequest`
+ * so `catchTag` can pattern-match concretely.
+ */
+const wrap = <R>(
+  handler: Effect.Effect<
+    HttpServerResponse.HttpServerResponse,
+    Unauthorized | BadRequest,
+    R
+  >,
+): Effect.Effect<HttpServerResponse.HttpServerResponse, never, R> =>
+  handler.pipe(
+    Effect.catchTag("Unauthorized", () =>
+      errorResponse("unauthorized", "invalid bearer token", 401),
+    ),
+    Effect.catchTag("BadRequest", (e) =>
+      errorResponse("bad_request", e.message, 400),
+    ),
+    Effect.catchCause((cause) => errorResponse("internal", String(cause), 500)),
+  );

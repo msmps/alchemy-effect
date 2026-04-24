@@ -1,3 +1,4 @@
+import StateStoreStack from "@/Cloudflare/StateStore/Stack.ts";
 import * as CfCredentials from "@distilled.cloud/cloudflare/Credentials";
 import { CloudflareEnvironment } from "alchemy/Cloudflare";
 import {
@@ -21,7 +22,6 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as HttpClient from "effect/unstable/http/HttpClient";
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
-import StateStoreStack from "../alchemy.run.ts";
 import TestStack from "./TestStack/Stack.ts";
 
 // ---- errors ------------------------------------------------------
@@ -102,9 +102,7 @@ const rpc = <T>(
 ) =>
   Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient;
-    const request = HttpClientRequest.post(
-      `${baseUrl}/state/${method}`,
-    ).pipe(
+    const request = HttpClientRequest.post(`${baseUrl}/state/${method}`).pipe(
       HttpClientRequest.bearerToken(token),
       HttpClientRequest.bodyJsonUnsafe(body),
     );
@@ -272,7 +270,7 @@ test(
     //    `cloudflareForLogin` provides the minimum set of services
     //    `loginWithCloudflare` needs beyond what the test harness
     //    already supplies.
-    yield* loginWithCloudflare().pipe(Effect.provide(cloudflareForLogin));
+    yield* loginWithCloudflare.pipe(Effect.provide(cloudflareForLogin));
 
     // 2. State store should be empty for the downstream stack before
     //    we deploy anything.
@@ -288,9 +286,7 @@ test(
     //    state store, not local disk. Providing `remoteState` here
     //    overrides the harness's default `LocalState` for this call
     //    (inner `Effect.provide` wins).
-    const deployed = yield* deploy(TestStack).pipe(
-      Effect.provide(remoteState),
-    );
+    const deployed = yield* deploy(TestStack).pipe(Effect.provide(remoteState));
     const workerUrl = deployed.url as string;
     expect(workerUrl).toBeString();
 
@@ -312,10 +308,7 @@ test(
     //    canary string defined in `TestStack`. `waitForBody` polls
     //    until the workers.dev subdomain is propagated so we don't
     //    read a Cloudflare edge error page.
-    const body = yield* waitForBody(
-      workerUrl,
-      "state-store-test-worker OK",
-    );
+    const body = yield* waitForBody(workerUrl, "state-store-test-worker OK");
     expect(body).toContain("state-store-test-worker OK");
 
     // 6. Tear down the downstream stack. Same override so `destroy`

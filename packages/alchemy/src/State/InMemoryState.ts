@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { ResourceState } from "./ResourceState.ts";
-import { State, type StateService } from "./State.ts";
+import { State } from "./State.ts";
 
 type StackId = string;
 type StageId = string;
@@ -12,21 +12,12 @@ export const InMemory = (
     StackId,
     Record<StageId, Record<Fqn, ResourceState>>
   > = {},
-) =>
-  Layer.succeed(State, InMemoryService(initialState)) as Layer.Layer<
-    State,
-    never,
-    never
-  >;
+) => Layer.succeed(State, InMemoryService(initialState));
 
 export const InMemoryService = (
-  initialState: Record<
-    StackId,
-    Record<StageId, Record<Fqn, ResourceState>>
-  > = {},
-) => {
-  const state = initialState;
-  return {
+  state: Record<StackId, Record<StageId, Record<Fqn, ResourceState>>> = {},
+) =>
+  State.of({
     listStacks: () => Effect.succeed(Array.from(Object.keys(state))),
     listStages: (stack: string) =>
       Effect.succeed(
@@ -82,5 +73,4 @@ export const InMemoryService = (
       Effect.succeed(
         Array.from(Object.keys(state[stack]?.[stage] ?? {}) ?? []),
       ),
-  } satisfies StateService;
-};
+  });

@@ -1,81 +1,8 @@
 import * as Cloudflare from "alchemy/Cloudflare";
-import type {
-  ReplacedResourceState,
-  ResourceState,
-} from "alchemy/State";
+import type { ReplacedResourceState, ResourceState } from "alchemy/State";
 import { encodeState } from "alchemy/State";
 import * as Effect from "effect/Effect";
 import { EncryptionKey } from "./Token.ts";
-
-/**
- * Well-known DO name whose sole job is to track the set of stacks
- * that have ever had resources written. `listStacks` queries it;
- * every `set` asks it to register the stack (idempotent).
- */
-export const ROOT_DO_NAME = "__root__" as const;
-
-/** NUL byte separator for composite keys. */
-const SEP = "\x00";
-
-/** Key prefix for resource entries in a stack DO. */
-const RESOURCE_PREFIX = `r${SEP}`;
-
-/** Key prefix for stack-index entries in the root DO. */
-const STACK_INDEX_PREFIX = "s:";
-
-/** AES-CTR counter block length. */
-const NONCE_BYTES = 16;
-
-/** Build the resource key inside a *stack DO*. */
-const resourceKey = (stage: string, fqn: string) =>
-  `${RESOURCE_PREFIX}${stage}${SEP}${fqn}`;
-
-/** Prefix matching every resource key inside a specific stage. */
-const stagePrefix = (stage: string) =>
-  `${RESOURCE_PREFIX}${stage}${SEP}`;
-
-/**
- * Parse a resource key back into its (stage, fqn) tuple. Returns
- * undefined for keys that do not match the expected shape.
- */
-const parseResourceKey = (
-  key: string,
-): { stage: string; fqn: string } | undefined => {
-  if (!key.startsWith(RESOURCE_PREFIX)) return undefined;
-  const rest = key.slice(RESOURCE_PREFIX.length);
-  const sep = rest.indexOf(SEP);
-  if (sep < 0) return undefined;
-  return { stage: rest.slice(0, sep), fqn: rest.slice(sep + 1) };
-};
-
-/**
- * Allocate a `Uint8Array` over a fresh `ArrayBuffer` (not shared) so
- * the resulting buffer satisfies Web Crypto's `BufferSource` type
- * constraint under strict DOM typings.
- */
-const allocBytes = (size: number): Uint8Array<ArrayBuffer> =>
-  new Uint8Array(new ArrayBuffer(size));
-
-const toB64 = (bytes: Uint8Array): string => {
-  let s = "";
-  for (let i = 0; i < bytes.byteLength; i++) s += String.fromCharCode(bytes[i]!);
-  return btoa(s);
-};
-
-const fromB64 = (s: string): Uint8Array<ArrayBuffer> => {
-  const bin = atob(s);
-  const bytes = allocBytes(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-};
-
-const hexToBytes = (hex: string): Uint8Array<ArrayBuffer> => {
-  const bytes = allocBytes(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
-};
 
 /**
  * A Durable Object whose storage layout depends on which name the
@@ -297,4 +224,74 @@ export default class StateStore extends Cloudflare.DurableObjectNamespace<StateS
       };
     });
   }),
-) {}
+) {
+  /**
+   * Well-known DO name whose sole job is to track the set of stacks
+   * that have ever had resources written. `listStacks` queries it;
+   * every `set` asks it to register the stack (idempotent).
+   */
+  static readonly ROOT_DO_NAME = "__root__" as const;
+}
+
+/** NUL byte separator for composite keys. */
+const SEP = "\x00";
+
+/** Key prefix for resource entries in a stack DO. */
+const RESOURCE_PREFIX = `r${SEP}`;
+
+/** Key prefix for stack-index entries in the root DO. */
+const STACK_INDEX_PREFIX = "s:";
+
+/** AES-CTR counter block length. */
+const NONCE_BYTES = 16;
+
+/** Build the resource key inside a *stack DO*. */
+const resourceKey = (stage: string, fqn: string) =>
+  `${RESOURCE_PREFIX}${stage}${SEP}${fqn}`;
+
+/** Prefix matching every resource key inside a specific stage. */
+const stagePrefix = (stage: string) => `${RESOURCE_PREFIX}${stage}${SEP}`;
+
+/**
+ * Parse a resource key back into its (stage, fqn) tuple. Returns
+ * undefined for keys that do not match the expected shape.
+ */
+const parseResourceKey = (
+  key: string,
+): { stage: string; fqn: string } | undefined => {
+  if (!key.startsWith(RESOURCE_PREFIX)) return undefined;
+  const rest = key.slice(RESOURCE_PREFIX.length);
+  const sep = rest.indexOf(SEP);
+  if (sep < 0) return undefined;
+  return { stage: rest.slice(0, sep), fqn: rest.slice(sep + 1) };
+};
+
+/**
+ * Allocate a `Uint8Array` over a fresh `ArrayBuffer` (not shared) so
+ * the resulting buffer satisfies Web Crypto's `BufferSource` type
+ * constraint under strict DOM typings.
+ */
+const allocBytes = (size: number): Uint8Array<ArrayBuffer> =>
+  new Uint8Array(new ArrayBuffer(size));
+
+const toB64 = (bytes: Uint8Array): string => {
+  let s = "";
+  for (let i = 0; i < bytes.byteLength; i++)
+    s += String.fromCharCode(bytes[i]!);
+  return btoa(s);
+};
+
+const fromB64 = (s: string): Uint8Array<ArrayBuffer> => {
+  const bin = atob(s);
+  const bytes = allocBytes(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+};
+
+const hexToBytes = (hex: string): Uint8Array<ArrayBuffer> => {
+  const bytes = allocBytes(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+};
