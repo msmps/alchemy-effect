@@ -1,0 +1,33 @@
+{
+  "name": "@alchemy.run/triage",
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alchemy-run/alchemy-effect.git",
+    "directory": "packages/triage"
+  },
+  "files": [
+    "lib",
+    "src",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "bun pm pack"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "bun": "./src/index.ts",
+      "worker": "./src/index.ts",
+      "import": "./lib/index.js"
+    }
+  },
+  "dependencies": {
+    "alchemy": "workspace:*",
+    "effect": "catalog:"
+  }
+}

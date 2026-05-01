@@ -6,6 +6,7 @@
       "name": "alchemy-monorepo",
       "devDependencies": {
         "@alchemy.run/pr-package": "workspace:*",
+        "@alchemy.run/triage": "workspace:*",
         "@ark/attest": "^0.56.0",
         "@effect/language-service": "^0.77.0",
         "@effect/platform-bun": "catalog:",
@@ -261,7 +262,7 @@
     },
     "packages/alchemy": {
       "name": "alchemy",
-      "version": "2.0.0-beta.26",
+      "version": "2.0.0-beta.28",
       "bin": {
         "alchemy": "./bin/cli.js",
       },
@@ -345,7 +346,7 @@
     },
     "packages/better-auth": {
       "name": "@alchemy.run/better-auth",
-      "version": "2.0.0-beta.26",
+      "version": "2.0.0-beta.28",
       "dependencies": {
         "alchemy": "workspace:*",
         "better-auth": "catalog:",
@@ -354,7 +355,15 @@
     },
     "packages/pr-package": {
       "name": "@alchemy.run/pr-package",
-      "version": "2.0.0-beta.26",
+      "version": "2.0.0-beta.28",
+      "dependencies": {
+        "alchemy": "workspace:*",
+        "effect": "catalog:",
+      },
+    },
+    "packages/triage": {
+      "name": "@alchemy.run/triage",
+      "version": "0.0.0",
       "dependencies": {
         "alchemy": "workspace:*",
         "effect": "catalog:",
@@ -465,6 +474,8 @@
     "@alchemy.run/better-auth": ["@alchemy.run/better-auth@workspace:packages/better-auth"],
 
     "@alchemy.run/pr-package": ["@alchemy.run/pr-package@workspace:packages/pr-package"],
+
+    "@alchemy.run/triage": ["@alchemy.run/triage@workspace:packages/triage"],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 

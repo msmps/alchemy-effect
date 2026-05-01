@@ -3,6 +3,7 @@ import { Command } from "../Build/Command.ts";
 import * as Build from "../Build/index.ts";
 import * as Provider from "../Provider.ts";
 import { Random, RandomProvider } from "../Random.ts";
+import * as AI from "./AI/index.ts";
 import * as ApiToken from "./ApiToken/index.ts";
 import * as Artifacts from "./Artifacts/index.ts";
 import { CloudflareAuth } from "./Auth/AuthProvider.ts";
@@ -32,6 +33,7 @@ export const providers = () =>
   Layer.effect(
     Providers,
     Provider.collection([
+      AI.AIPolicy,
       ApiToken.AccountApiToken,
       ApiToken.UserApiToken,
       Artifacts.ArtifactsBindingPolicy,
@@ -58,6 +60,7 @@ export const providers = () =>
   ).pipe(
     Layer.provide(
       Layer.mergeAll(
+        AI.AIPolicyLive,
         ApiToken.AccountApiTokenProvider(),
         ApiToken.UserApiTokenProvider(),
         Artifacts.ArtifactsBindingPolicyLive,
