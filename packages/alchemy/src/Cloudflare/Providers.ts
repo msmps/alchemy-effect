@@ -107,14 +107,21 @@ export const providers = () =>
     Layer.provideMerge(Access.AccessLive),
     // Apply a blanket retry policy to every Cloudflare API call. Extends
     // `Retry.makeDefault`'s transient detection (throttling / 5xx /
-    // network) with Cloudflare's known "misleadingly-tagged" transient
-    // errors — see `cloudflareRetryFactory` below. Without this, brief
-    // auth-edge / internal blips during a deploy surface as test
-    // failures and resource leaks.
+    // network) with one Cloudflare-specific misleadingly-tagged
+    // transient case the SDK doesn't yet mark retryable — see
+    // `cloudflareRetryFactory` below. Without this, the matching brief
+    // CF infrastructure blips surface as test failures and resource
+    // leaks.
     //
-    // TODO(distilled): mark these cases with `withRetryable` upstream in
-    // `@distilled.cloud/cloudflare/src/client/api.ts` so consumers don't
-    // need to override the retry predicate.
+    // Deliberately narrow: we ONLY add cases where the message
+    // unambiguously indicates a transient infrastructure failure (not
+    // a real auth/permission failure). Auto-retrying ambiguous cases
+    // like `Unauthorized: Authentication error` would silently loop on
+    // genuinely invalid tokens.
+    //
+    // TODO(distilled): once
+    // https://github.com/alchemy-run/distilled/pull/233 lands, this
+    // wrapper can collapse back to `Retry.makeDefault`.
     Layer.provideMerge(Layer.succeed(Retry.Retry, cloudflareRetryFactory)),
     Layer.orDie,
   );
@@ -123,19 +130,12 @@ const isMisleadinglyTaggedTransient = (error: unknown): boolean => {
   if (!error || typeof error !== "object") return false;
   const tag = (error as { _tag?: unknown })._tag;
   const message = ((error as { message?: unknown }).message ?? "") as string;
-  // 10000: "Authentication error" — CF auth-edge blip; the token is
-  // valid, the edge node returned 401 transiently.
-  if (tag === "Unauthorized" && /authentication error/i.test(message))
-    return true;
-  // 10001: "internal error" — CF internal hiccup mistagged as 403.
+  // CF code 10001: "Method not allowed for token" is a real permission
+  // failure (NOT retryable), but the same code is also returned with
+  // message "internal error" during Cloudflare-side hiccups. The two
+  // messages are unambiguously distinct, so we can safely retry only
+  // the internal-error variant.
   if (tag === "Forbidden" && /internal error/i.test(message)) return true;
-  // Workers API sometimes wraps 5xx as WorkerNotFound.
-  if (
-    tag === "WorkerNotFound" &&
-    /unknown error has occurred/i.test(message)
-  ) {
-    return true;
-  }
   return false;
 };
 
