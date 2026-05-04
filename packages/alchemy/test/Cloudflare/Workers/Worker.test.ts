@@ -7,9 +7,7 @@ import { State } from "@/State";
 import * as Test from "@/Test/Vitest";
 import * as workers from "@distilled.cloud/cloudflare/workers";
 import { expect } from "@effect/vitest";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { MinimumLogLevel } from "effect/References";
@@ -463,18 +461,28 @@ test.provider(
 
       yield* stack.destroy();
 
+      // Use a fixed physical name so the worker's identity persists
+      // across a state-store wipe (otherwise `createWorkerName` would
+      // pick a fresh random suffix on the second deploy and we'd just
+      // be creating a new worker, not adopting).
+      const physicalName = `alchemy-test-owned-adopt-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+
       // Phase 1: deploy normally so a real Worker exists on Cloudflare,
       // tagged with this stack/stage/id.
       const initial = yield* stack.deploy(
         Effect.gen(function* () {
           return yield* Cloudflare.Worker("AdoptableWorker", {
             main,
+            name: physicalName,
             subdomain: { enabled: true, previewsEnabled: true },
             compatibility: { date: "2024-01-01" },
           });
         }),
       );
-      expect(yield* findWorker(initial.workerName, accountId)).toBeDefined();
+      expect(initial.workerName).toEqual(physicalName);
+      expect(yield* findWorker(physicalName, accountId)).toBeDefined();
 
       // Phase 2: wipe local state for this resource — the worker stays on
       // Cloudflare. From the next deploy's perspective this looks like a
@@ -496,13 +504,14 @@ test.provider(
         Effect.gen(function* () {
           return yield* Cloudflare.Worker("AdoptableWorker", {
             main,
+            name: physicalName,
             subdomain: { enabled: true, previewsEnabled: true },
             compatibility: { date: "2024-01-01" },
           });
         }),
       );
 
-      expect(adopted.workerName).toEqual(initial.workerName);
+      expect(adopted.workerName).toEqual(physicalName);
 
       const persisted = yield* Effect.gen(function* () {
         const state = yield* State;
@@ -514,17 +523,15 @@ test.provider(
       }).pipe(Effect.provide(stack.state));
 
       expect(persisted?.status).toBeDefined();
-      expect(persisted?.attr).toMatchObject({
-        workerName: initial.workerName,
-      });
+      expect(persisted?.attr).toMatchObject({ workerName: physicalName });
 
       yield* stack.destroy();
-      yield* waitForWorkerToBeDeleted(initial.workerName, accountId);
+      yield* waitForWorkerToBeDeleted(physicalName, accountId);
     }).pipe(logLevel),
 );
 
 test.provider(
-  "unowned worker (foreign alchemy tags) requires adopt(true) to take over",
+  "adopt(true) takes over a foreign-tagged worker",
   (stack) =>
     Effect.gen(function* () {
       const { accountId } = yield* CloudflareEnvironment;
@@ -562,12 +569,14 @@ test.provider(
         });
       }).pipe(Effect.provide(stack.state));
 
-      // Phase 2: attempting to deploy the same physical worker under a
-      // *different* logical id without `adopt(true)` must fail —
-      // `Worker.read` returns `Unowned(attrs)` because the existing tags
-      // identify a different logical id, and the engine raises
-      // `OwnedBySomeoneElse`.
-      const rejected = yield* stack
+      // Phase 2: redeploy under a *different* logical id with the same
+      // physical name and `adopt(true)`. `Worker.read` returns
+      // `Unowned(attrs)` because the existing tags identify a different
+      // logical id; with adopt enabled the engine takes over and the
+      // follow-up create/update rewrites the tags. (The rejection path
+      // — same scenario without `adopt(true)` — is covered by the unit
+      // tests in `plan.test.ts`.)
+      const takenOver = yield* stack
         .deploy(
           Effect.gen(function* () {
             return yield* Cloudflare.Worker("Different", {
@@ -578,27 +587,7 @@ test.provider(
             });
           }),
         )
-        .pipe(Effect.exit);
-
-      expect(Exit.isFailure(rejected)).toBe(true);
-      if (Exit.isFailure(rejected)) {
-        const reason = rejected.cause.reasons.find(Cause.isFailReason);
-        expect((reason?.error as any)?._tag).toBe("OwnedBySomeoneElse");
-      }
-
-      // Phase 3: opt in via `adopt(true)`. The engine takes over even
-      // though tags identify a different logical id. The next
-      // create/update overwrites tags so the worker is now ours.
-      const takenOver = yield* stack.deploy(
-        Effect.gen(function* () {
-          return yield* Cloudflare.Worker("Different", {
-            main,
-            name: physicalName,
-            subdomain: { enabled: true, previewsEnabled: true },
-            compatibility: { date: "2024-01-01" },
-          });
-        }).pipe(adopt(true)),
-      );
+        .pipe(adopt(true));
 
       expect(takenOver.workerName).toEqual(physicalName);
 

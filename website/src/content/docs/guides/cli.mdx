@@ -124,16 +124,22 @@ alchemy deploy
 alchemy deploy --adopt
 ```
 
-You can also scope adoption to a single resource or sub-stack with
-the `adopt` combinator from `alchemy/AdoptPolicy`:
+You can also enable adoption programmatically by piping the
+`adopt` combinator onto a deploy effect from `alchemy/AdoptPolicy`:
 
 ```typescript
 import { adopt } from "alchemy/AdoptPolicy";
 
-yield* Effect.gen(function* () {
-  yield* Cloudflare.Worker("API", { /* ... */ });
-}).pipe(adopt(true));
+yield* deploy(
+  Effect.gen(function* () {
+    yield* Cloudflare.Worker("API", { /* ... */ });
+  }),
+).pipe(adopt(true));
 ```
+
+`AdoptPolicy` is consulted at plan time, so the combinator must
+wrap the *deploy* (or test runner's `stack.deploy(...)`) — not the
+inner resource-declaration effect.
 
 Resources without ownership semantics (e.g. APIs that always
 return a singleton by name, with no tag concept) silently adopt
