@@ -142,7 +142,9 @@ export const QueueProvider = () =>
 
           // Observe — re-fetch the cached queue; fall back to a name scan
           // when the cached id is gone (out-of-band delete or partial
-          // state-persistence failure).
+          // state-persistence failure). Only swallow `QueueNotFound`
+          // here so auth/throttling/5xx failures surface to the engine
+          // for retry rather than being misread as "queue is missing".
           let observed:
             | { queueId?: string | null; queueName?: string | null }
             | undefined;
@@ -150,22 +152,25 @@ export const QueueProvider = () =>
             observed = yield* getQueue({
               accountId: acct,
               queueId: output.queueId,
-            }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+            }).pipe(
+              Effect.catchTag("QueueNotFound", () => Effect.succeed(undefined)),
+            );
           }
           if (!observed) {
             observed = yield* findQueueByName(queueName);
           }
 
-          // Ensure — create if missing. Cloudflare returns a generic
-          // failure when the queue name is taken; tolerate by adopting
-          // the queue with the same name so reconciles converge after a
-          // crashed peer.
+          // Ensure — create if missing. Cloudflare returns
+          // `QueueAlreadyExists` (or a generic `UnknownCloudflareError`
+          // wrapping the same condition) when the queue name is taken;
+          // scope the catch to that race so transient failures
+          // (auth/throttling/5xx) propagate.
           if (!observed) {
             observed = yield* createQueue({
               accountId: acct,
               queueName,
             }).pipe(
-              Effect.catch(() =>
+              Effect.catchTag("QueueAlreadyExists", () =>
                 Effect.gen(function* () {
                   const match = yield* findQueueByName(queueName);
                   if (match && match.queueId && match.queueName) {
@@ -189,10 +194,13 @@ export const QueueProvider = () =>
           };
         }),
         delete: Effect.fn(function* ({ output }) {
+          // `QueueNotFound` is the idempotent path (already deleted, or
+          // racing with another deleter). Anything else — auth,
+          // throttling, 5xx — must surface so the engine can retry.
           yield* deleteQueue({
             accountId: output.accountId,
             queueId: output.queueId,
-          }).pipe(Effect.catch(() => Effect.void));
+          }).pipe(Effect.catchTag("QueueNotFound", () => Effect.void));
         }),
         read: Effect.fn(function* ({ id, output, olds }) {
           if (output?.queueId) {
@@ -205,7 +213,7 @@ export const QueueProvider = () =>
                 queueName: queue.queueName!,
                 accountId: output.accountId,
               })),
-              Effect.catch(() => Effect.succeed(undefined)),
+              Effect.catchTag("QueueNotFound", () => Effect.succeed(undefined)),
             );
           }
           const queueName = yield* createQueueName(id, olds?.name);
