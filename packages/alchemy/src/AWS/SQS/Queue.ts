@@ -227,9 +227,14 @@ export const QueueProvider = () =>
           if (!url) return undefined;
           const queueArn =
             `arn:aws:sqs:${region}:${accountId}:${queueName}` as const;
+          // Only swallow `QueueDoesNotExist` (queue raced away after our
+          // `getQueueUrl`). Auth, throttling, and parse errors must surface so
+          // we don't mistakenly mark the queue as Unowned and fail later.
           const tagsResp = yield* sqs.listQueueTags({ QueueUrl: url }).pipe(
             Effect.map((r) => r.Tags ?? {}),
-            Effect.catch(() => Effect.succeed({} as Record<string, string>)),
+            Effect.catchTag("QueueDoesNotExist", () =>
+              Effect.succeed({} as Record<string, string>),
+            ),
           );
           const attrs = {
             queueName,
@@ -292,6 +297,10 @@ export const QueueProvider = () =>
                 tags: internalTags,
               })
               .pipe(
+                // SQS forbids re-creating a deleted queue for ~60s. Poll
+                // every second up to 75s — well past the documented 60s
+                // window — then surface so we don't loop forever if the
+                // service stays in this state.
                 Effect.retry({
                   while: (e) => e._tag === "QueueDeletedRecently",
                   schedule: Schedule.fixed(1000).pipe(
@@ -300,6 +309,7 @@ export const QueueProvider = () =>
                         `Queue was deleted recently, retrying... ${i + 1}s`,
                       ),
                     ),
+                    Schedule.both(Schedule.recurs(75)),
                   ),
                 }),
                 Effect.catchTag("QueueNameExists", () =>
@@ -343,7 +353,9 @@ export const QueueProvider = () =>
             .listQueueTags({ QueueUrl: queueUrl })
             .pipe(
               Effect.map((r) => r.Tags ?? {}),
-              Effect.catch(() => Effect.succeed({} as Record<string, string>)),
+              Effect.catchTag("QueueDoesNotExist", () =>
+                Effect.succeed({} as Record<string, string>),
+              ),
             );
           const tagDelta: Record<string, string> = {};
           for (const [key, value] of Object.entries(internalTags)) {

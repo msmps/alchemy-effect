@@ -284,8 +284,325 @@ test.provider(
       expect(takenOver.queueName).toEqual(queueName);
       expect(takenOver.queueUrl).toEqual(original.queueUrl);
 
+      // Adopting with `adopt(true)` should retag the queue with the internal
+      // alchemy tags so subsequent runs route through silent adoption.
+      const tags = yield* SQS.listQueueTags({ QueueUrl: takenOver.queueUrl });
+      expect(tags.Tags?.["alchemy:fqn"]).toBeDefined();
+      expect(tags.Tags?.["alchemy:stage"]).toBeDefined();
+
       yield* stack.destroy();
       yield* assertQueueDeleted(takenOver.queueUrl);
+    }),
+);
+
+test.provider(
+  "redeploy with same props is a no-op (reconcile is idempotent)",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const initial = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("IdempotentQueue", {
+            visibilityTimeout: 45,
+          });
+        }),
+      );
+
+      // Deploy again with identical props — should converge without
+      // changing the queue. We can't easily assert "no API write", but we
+      // can assert the queue is still functional and properties unchanged.
+      const second = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("IdempotentQueue", {
+            visibilityTimeout: 45,
+          });
+        }),
+      );
+      expect(second.queueUrl).toEqual(initial.queueUrl);
+      expect(second.queueArn).toEqual(initial.queueArn);
+
+      const attrs = yield* SQS.getQueueAttributes({
+        QueueUrl: second.queueUrl,
+        AttributeNames: ["All"],
+      });
+      expect(attrs.Attributes?.VisibilityTimeout).toEqual("45");
+
+      yield* stack.destroy();
+      yield* assertQueueDeleted(initial.queueUrl);
+    }),
+);
+
+test.provider(
+  "reconcile resets attributes mutated out-of-band",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const queue = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("DriftQueue", {
+            visibilityTimeout: 30,
+            delaySeconds: 0,
+          });
+        }),
+      );
+
+      // Mutate the queue out-of-band via the raw SDK.
+      yield* SQS.setQueueAttributes({
+        QueueUrl: queue.queueUrl,
+        Attributes: {
+          VisibilityTimeout: "999",
+          DelaySeconds: "60",
+        },
+      });
+      yield* waitForQueueAttributeMatch(queue.queueUrl, {
+        VisibilityTimeout: "999",
+        DelaySeconds: "60",
+      });
+
+      // Re-deploy with the same desired props — reconcile should reset the
+      // drifted attributes back to the desired values.
+      const redeployed = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("DriftQueue", {
+            visibilityTimeout: 30,
+            delaySeconds: 0,
+          });
+        }),
+      );
+      expect(redeployed.queueUrl).toEqual(queue.queueUrl);
+
+      yield* waitForQueueAttributeMatch(queue.queueUrl, {
+        VisibilityTimeout: "30",
+        DelaySeconds: "0",
+      });
+
+      yield* stack.destroy();
+      yield* assertQueueDeleted(queue.queueUrl);
+    }),
+);
+
+test.provider(
+  "reconcile re-creates a queue that was deleted out-of-band",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const queueName = `alchemy-test-sqs-recreate-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+
+      const initial = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("RecreateQueue", { queueName });
+        }),
+      );
+
+      // Delete the queue out of band.
+      yield* SQS.deleteQueue({ QueueUrl: initial.queueUrl });
+      yield* assertQueueDeleted(initial.queueUrl);
+
+      // Re-deploying must converge by re-creating. SQS forbids creating
+      // a queue with the same name within ~60s of deletion, so the
+      // reconciler's bounded retry rides this out.
+      const recreated = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("RecreateQueue", { queueName });
+        }),
+      );
+
+      expect(recreated.queueName).toEqual(queueName);
+      const attrs = yield* SQS.getQueueAttributes({
+        QueueUrl: recreated.queueUrl,
+        AttributeNames: ["All"],
+      });
+      expect(attrs.Attributes).toBeDefined();
+
+      yield* stack.destroy();
+      yield* assertQueueDeleted(recreated.queueUrl);
+    }),
+  { timeout: 180_000 },
+);
+
+test.provider(
+  "changing queueName triggers replace, old queue is deleted",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const nameA = `alchemy-test-sqs-replace-a-${suffix}`;
+      const nameB = `alchemy-test-sqs-replace-b-${suffix}`;
+
+      const a = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("RenameQueue", { queueName: nameA });
+        }),
+      );
+      expect(a.queueName).toEqual(nameA);
+
+      const b = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("RenameQueue", { queueName: nameB });
+        }),
+      );
+      expect(b.queueName).toEqual(nameB);
+      expect(b.queueUrl).not.toEqual(a.queueUrl);
+
+      // The old queue must be gone after replace.
+      yield* assertQueueDeleted(a.queueUrl);
+
+      yield* stack.destroy();
+      yield* assertQueueDeleted(b.queueUrl);
+    }),
+);
+
+test.provider(
+  "flipping fifo flag triggers replace",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const standard = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("FifoFlipQueue");
+        }),
+      );
+      expect(standard.queueName).not.toContain(".fifo");
+
+      const fifo = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("FifoFlipQueue", {
+            fifo: true,
+            contentBasedDeduplication: true,
+          });
+        }),
+      );
+      expect(fifo.queueName).toContain(".fifo");
+      expect(fifo.queueUrl).not.toEqual(standard.queueUrl);
+
+      yield* assertQueueDeleted(standard.queueUrl);
+
+      yield* stack.destroy();
+      yield* assertQueueDeleted(fifo.queueUrl);
+    }),
+  { timeout: 180_000 },
+);
+
+test.provider(
+  "updates all mutable standard attributes in one go",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const initial = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("AllAttrsQueue", {
+            delaySeconds: 0,
+            maximumMessageSize: 262144,
+            messageRetentionPeriod: 345600,
+            receiveMessageWaitTimeSeconds: 0,
+            visibilityTimeout: 30,
+          });
+        }),
+      );
+      yield* waitForQueueAttributeMatch(initial.queueUrl, {
+        DelaySeconds: "0",
+        MaximumMessageSize: "262144",
+        MessageRetentionPeriod: "345600",
+        ReceiveMessageWaitTimeSeconds: "0",
+        VisibilityTimeout: "30",
+      });
+
+      const updated = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("AllAttrsQueue", {
+            delaySeconds: 5,
+            maximumMessageSize: 524288,
+            messageRetentionPeriod: 86400,
+            receiveMessageWaitTimeSeconds: 20,
+            visibilityTimeout: 120,
+          });
+        }),
+      );
+      expect(updated.queueUrl).toEqual(initial.queueUrl);
+      yield* waitForQueueAttributeMatch(updated.queueUrl, {
+        DelaySeconds: "5",
+        MaximumMessageSize: "524288",
+        MessageRetentionPeriod: "86400",
+        ReceiveMessageWaitTimeSeconds: "20",
+        VisibilityTimeout: "120",
+      });
+
+      yield* stack.destroy();
+      yield* assertQueueDeleted(initial.queueUrl);
+    }),
+);
+
+test.provider(
+  "updates all mutable FIFO-specific attributes",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const initial = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("FifoAttrsQueue", {
+            fifo: true,
+            contentBasedDeduplication: false,
+            deduplicationScope: "queue",
+            fifoThroughputLimit: "perQueue",
+          });
+        }),
+      );
+      yield* waitForQueueAttributeMatch(initial.queueUrl, {
+        FifoQueue: "true",
+        ContentBasedDeduplication: "false",
+        DeduplicationScope: "queue",
+        FifoThroughputLimit: "perQueue",
+      });
+
+      const updated = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("FifoAttrsQueue", {
+            fifo: true,
+            contentBasedDeduplication: true,
+            deduplicationScope: "messageGroup",
+            fifoThroughputLimit: "perMessageGroupId",
+          });
+        }),
+      );
+      expect(updated.queueUrl).toEqual(initial.queueUrl);
+      yield* waitForQueueAttributeMatch(updated.queueUrl, {
+        ContentBasedDeduplication: "true",
+        DeduplicationScope: "messageGroup",
+        FifoThroughputLimit: "perMessageGroupId",
+      });
+
+      yield* stack.destroy();
+      yield* assertQueueDeleted(initial.queueUrl);
+    }),
+);
+
+test.provider(
+  "destroying an already-deleted queue is a no-op",
+  (stack) =>
+    Effect.gen(function* () {
+      yield* stack.destroy();
+
+      const queue = yield* stack.deploy(
+        Effect.gen(function* () {
+          return yield* Queue("DoubleDestroyQueue");
+        }),
+      );
+
+      // Delete the queue out of band, then ask the engine to destroy it.
+      // Provider's `delete` must catch QueueDoesNotExist and complete cleanly.
+      yield* SQS.deleteQueue({ QueueUrl: queue.queueUrl });
+      yield* assertQueueDeleted(queue.queueUrl);
+
+      yield* stack.destroy();
     }),
 );
 
