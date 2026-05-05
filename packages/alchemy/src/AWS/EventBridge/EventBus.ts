@@ -1,6 +1,7 @@
 import { Region } from "@distilled.cloud/aws/Region";
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Effect from "effect/Effect";
+import * as Schedule from "effect/Schedule";
 
 import { Unowned } from "../../AdoptPolicy.ts";
 import { isResolved } from "../../Diff.ts";
@@ -117,6 +118,24 @@ export interface EventBus extends Resource<
 > {}
 export const EventBus = Resource<EventBus>("AWS.EventBridge.EventBus");
 
+/**
+ * Retry transient EventBridge faults: `ConcurrentModificationException`
+ * fires when two writers race on the same event bus, and `InternalException`
+ * is the catch-all for service-side hiccups. Both are safe to replay because
+ * the bus operations we wrap are idempotent on matching params.
+ */
+const retryEventBridgeTransients = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  effect.pipe(
+    Effect.retry({
+      while: (error: any) =>
+        error?._tag === "ConcurrentModificationException" ||
+        error?._tag === "InternalException",
+      schedule: Schedule.exponential(200).pipe(
+        Schedule.both(Schedule.recurs(8)),
+      ),
+    }),
+  );
+
 export const EventBusProvider = () =>
   Provider.effect(
     EventBus,
@@ -151,23 +170,33 @@ export const EventBusProvider = () =>
         read: Effect.fn(function* ({ id, olds, output }) {
           const eventBusName =
             output?.eventBusName ?? (yield* createEventBusName(id, olds ?? {}));
-          const described = yield* eventbridge
-            .describeEventBus({
-              Name: eventBusName,
-            })
-            .pipe(
-              Effect.catchTag("ResourceNotFoundException", () =>
-                Effect.succeed(undefined),
+          const described = yield* retryEventBridgeTransients(
+            eventbridge
+              .describeEventBus({
+                Name: eventBusName,
+              })
+              .pipe(
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed(undefined),
+                ),
               ),
-            );
+          );
 
           if (!described?.Arn || !described.Name) {
             return undefined;
           }
 
-          const { Tags } = yield* eventbridge.listTagsForResource({
-            ResourceARN: described.Arn,
-          });
+          const { Tags } = yield* retryEventBridgeTransients(
+            eventbridge
+              .listTagsForResource({
+                ResourceARN: described.Arn,
+              })
+              .pipe(
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed({ Tags: [] as eventbridge.Tag[] }),
+                ),
+              ),
+          );
           const attrs = {
             eventBusName: described.Name,
             eventBusArn: described.Arn as EventBusArn,
@@ -192,40 +221,8 @@ export const EventBusProvider = () =>
           // blindly: a bus deleted out of band shows up as missing and we
           // recreate. Foreign-tagged buses have already been screened by
           // `read` upstream.
-          let described = yield* eventbridge
-            .describeEventBus({
-              Name: eventBusName,
-            })
-            .pipe(
-              Effect.catchTag("ResourceNotFoundException", () =>
-                Effect.succeed(undefined),
-              ),
-            );
-
-          // Ensure — create the bus if missing. Tolerate
-          // `ResourceAlreadyExistsException` as a race with a peer
-          // reconciler: re-read and continue with the sync path.
-          if (!described?.Arn) {
-            yield* eventbridge
-              .createEventBus({
-                Name: eventBusName,
-                EventSourceName: news.eventSourceName,
-                Description: news.description,
-                KmsKeyIdentifier: news.kmsKeyIdentifier as string | undefined,
-                DeadLetterConfig: news.deadLetterConfig
-                  ? { Arn: news.deadLetterConfig.Arn as string | undefined }
-                  : undefined,
-                LogConfig: news.logConfig,
-                Tags: createTagsList(desiredTags),
-              })
-              .pipe(
-                Effect.catchTag(
-                  "ResourceAlreadyExistsException",
-                  () => Effect.void,
-                ),
-              );
-
-            described = yield* eventbridge
+          let described = yield* retryEventBridgeTransients(
+            eventbridge
               .describeEventBus({
                 Name: eventBusName,
               })
@@ -233,30 +230,83 @@ export const EventBusProvider = () =>
                 Effect.catchTag("ResourceNotFoundException", () =>
                   Effect.succeed(undefined),
                 ),
-              );
+              ),
+          );
+
+          // Ensure — create the bus if missing. Tolerate
+          // `ResourceAlreadyExistsException` as a race with a peer
+          // reconciler: re-read and continue with the sync path.
+          if (!described?.Arn) {
+            yield* retryEventBridgeTransients(
+              eventbridge
+                .createEventBus({
+                  Name: eventBusName,
+                  EventSourceName: news.eventSourceName,
+                  Description: news.description,
+                  KmsKeyIdentifier: news.kmsKeyIdentifier as string | undefined,
+                  DeadLetterConfig: news.deadLetterConfig
+                    ? { Arn: news.deadLetterConfig.Arn as string | undefined }
+                    : undefined,
+                  LogConfig: news.logConfig,
+                  Tags: createTagsList(desiredTags),
+                })
+                .pipe(
+                  Effect.catchTag(
+                    "ResourceAlreadyExistsException",
+                    () => Effect.void,
+                  ),
+                ),
+            );
+
+            described = yield* retryEventBridgeTransients(
+              eventbridge
+                .describeEventBus({
+                  Name: eventBusName,
+                })
+                .pipe(
+                  Effect.catchTag("ResourceNotFoundException", () =>
+                    Effect.succeed(undefined),
+                  ),
+                ),
+            );
           }
 
           // Sync mutable bus configuration — `updateEventBus` overwrites
           // `description`, KMS key, DLQ, and log config in one shot, so we
           // call it unconditionally (idempotent for matching values).
-          yield* eventbridge.updateEventBus({
-            Name: eventBusName,
-            Description: news.description,
-            KmsKeyIdentifier: news.kmsKeyIdentifier as string | undefined,
-            DeadLetterConfig: news.deadLetterConfig
-              ? { Arn: news.deadLetterConfig.Arn as string | undefined }
-              : undefined,
-            LogConfig: news.logConfig,
-          });
+          // `ResourceNotFoundException` is a race with delete; rest in
+          // peace, the engine will re-converge on the next pass.
+          yield* retryEventBridgeTransients(
+            eventbridge
+              .updateEventBus({
+                Name: eventBusName,
+                Description: news.description,
+                KmsKeyIdentifier: news.kmsKeyIdentifier as string | undefined,
+                DeadLetterConfig: news.deadLetterConfig
+                  ? { Arn: news.deadLetterConfig.Arn as string | undefined }
+                  : undefined,
+                LogConfig: news.logConfig,
+              })
+              .pipe(
+                Effect.catchTag("ResourceNotFoundException", () => Effect.void),
+              ),
+          );
 
           // Sync tags — diff observed cloud tags against desired. Adoption
           // may bring us a bus with its own tag set; diffing against the
           // freshly-fetched tags lets the reconciler converge regardless.
-          const observedTagsList = yield* eventbridge
-            .listTagsForResource({
-              ResourceARN: eventBusArn,
-            })
-            .pipe(Effect.map((r) => r.Tags ?? []));
+          const observedTagsList = yield* retryEventBridgeTransients(
+            eventbridge
+              .listTagsForResource({
+                ResourceARN: eventBusArn,
+              })
+              .pipe(
+                Effect.map((r) => r.Tags ?? []),
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed([] as eventbridge.Tag[]),
+                ),
+              ),
+          );
           const observedTags: Record<string, string> = {};
           for (const tag of observedTagsList) {
             if (tag.Key && tag.Value !== undefined) {
@@ -266,17 +316,33 @@ export const EventBusProvider = () =>
           const { removed, upsert } = diffTags(observedTags, desiredTags);
 
           if (removed.length > 0) {
-            yield* eventbridge.untagResource({
-              ResourceARN: eventBusArn,
-              TagKeys: removed,
-            });
+            yield* retryEventBridgeTransients(
+              eventbridge
+                .untagResource({
+                  ResourceARN: eventBusArn,
+                  TagKeys: removed,
+                })
+                .pipe(
+                  Effect.catchTag("ResourceNotFoundException", () =>
+                    Effect.void,
+                  ),
+                ),
+            );
           }
 
           if (upsert.length > 0) {
-            yield* eventbridge.tagResource({
-              ResourceARN: eventBusArn,
-              Tags: upsert,
-            });
+            yield* retryEventBridgeTransients(
+              eventbridge
+                .tagResource({
+                  ResourceARN: eventBusArn,
+                  Tags: upsert,
+                })
+                .pipe(
+                  Effect.catchTag("ResourceNotFoundException", () =>
+                    Effect.void,
+                  ),
+                ),
+            );
           }
 
           yield* session.note(eventBusArn);
@@ -287,9 +353,25 @@ export const EventBusProvider = () =>
           };
         }),
         delete: Effect.fn(function* (input) {
-          yield* eventbridge.deleteEventBus({
-            Name: input.output.eventBusName,
-          });
+          // Idempotent destroy: ignore `ResourceNotFoundException` so a
+          // double-destroy (or out-of-band delete) is a no-op. The error
+          // is missing from `deleteEventBus`'s typed union upstream so we
+          // pattern-match by `_tag` and re-raise anything else. Wrap in
+          // the transient-retry helper to ride out
+          // `ConcurrentModificationException` from peer writers.
+          yield* retryEventBridgeTransients(
+            eventbridge
+              .deleteEventBus({
+                Name: input.output.eventBusName,
+              })
+              .pipe(
+                Effect.catch((error: any) =>
+                  error?._tag === "ResourceNotFoundException"
+                    ? Effect.void
+                    : Effect.fail(error),
+                ),
+              ),
+          );
         }),
       };
     }),

@@ -1,6 +1,7 @@
 import { Region } from "@distilled.cloud/aws/Region";
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Effect from "effect/Effect";
+import * as Schedule from "effect/Schedule";
 import { Unowned } from "../../AdoptPolicy.ts";
 import { isResolved } from "../../Diff.ts";
 import type { Input } from "../../Input.ts";
@@ -269,6 +270,26 @@ export interface Rule extends Resource<
 > {}
 export const Rule = Resource<Rule>("AWS.EventBridge.Rule");
 
+/**
+ * Retry transient EventBridge faults: `ConcurrentModificationException` is
+ * raised when two writers race on the same rule (e.g. put-rule + put-targets
+ * landing simultaneously) and `InternalException` is the catch-all for
+ * service-side hiccups. Both are safe to replay because the operations
+ * we wrap (putRule/putTargets/removeTargets/tag*) are idempotent on
+ * matching params.
+ */
+const retryEventBridgeTransients = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  effect.pipe(
+    Effect.retry({
+      while: (error: any) =>
+        error?._tag === "ConcurrentModificationException" ||
+        error?._tag === "InternalException",
+      schedule: Schedule.exponential(200).pipe(
+        Schedule.both(Schedule.recurs(8)),
+      ),
+    }),
+  );
+
 export const RuleProvider = () =>
   Provider.effect(
     Rule,
@@ -306,17 +327,19 @@ export const RuleProvider = () =>
             output?.ruleName ?? (yield* createRuleName(id, olds));
           const eventBusName =
             output?.eventBusName ?? olds.eventBusName ?? "default";
-          const described = yield* eventbridge
-            .describeRule({
-              Name: ruleName,
-              EventBusName:
-                eventBusName !== "default" ? eventBusName : undefined,
-            })
-            .pipe(
-              Effect.catchTag("ResourceNotFoundException", () =>
-                Effect.succeed(undefined),
+          const described = yield* retryEventBridgeTransients(
+            eventbridge
+              .describeRule({
+                Name: ruleName,
+                EventBusName:
+                  eventBusName !== "default" ? eventBusName : undefined,
+              })
+              .pipe(
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed(undefined),
+                ),
               ),
-            );
+          );
 
           if (!described?.Name) {
             return undefined;
@@ -329,9 +352,21 @@ export const RuleProvider = () =>
             resolvedEventBusName,
             described.Name,
           );
-          const { Tags } = yield* eventbridge.listTagsForResource({
-            ResourceARN: described.Arn ?? ruleArn,
-          });
+          // listTagsForResource can race with delete — fall back to an empty
+          // tag set so the upstream ownership check treats the rule as
+          // foreign (and the engine can recreate cleanly). Transient
+          // server-side faults are retried.
+          const { Tags } = yield* retryEventBridgeTransients(
+            eventbridge
+              .listTagsForResource({
+                ResourceARN: described.Arn ?? ruleArn,
+              })
+              .pipe(
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed({ Tags: [] as eventbridge.Tag[] }),
+                ),
+              ),
+          );
           const attrs = {
             ruleName: described.Name,
             ruleArn,
@@ -362,19 +397,23 @@ export const RuleProvider = () =>
           // matching params and overwrites schedule/eventPattern/state/etc.
           // on differences, so we call it unconditionally. `Tags` only
           // applies when creating; tags are reconciled separately below
-          // against observed cloud tags.
-          const { RuleArn } = yield* eventbridge.putRule({
-            Name: ruleName,
-            Description: news.description,
-            EventBusName: eventBusParam,
-            EventPattern: news.eventPattern
-              ? JSON.stringify(news.eventPattern)
-              : undefined,
-            ScheduleExpression: news.scheduleExpression,
-            State: news.state ?? "ENABLED",
-            RoleArn: news.roleArn as string | undefined,
-            Tags: createTagsList(desiredTags),
-          });
+          // against observed cloud tags. Retry transient
+          // `ConcurrentModificationException` / `InternalException` —
+          // both can fire when a peer reconciler races on the same rule.
+          const { RuleArn } = yield* retryEventBridgeTransients(
+            eventbridge.putRule({
+              Name: ruleName,
+              Description: news.description,
+              EventBusName: eventBusParam,
+              EventPattern: news.eventPattern
+                ? JSON.stringify(news.eventPattern)
+                : undefined,
+              ScheduleExpression: news.scheduleExpression,
+              State: news.state ?? "ENABLED",
+              RoleArn: news.roleArn as string | undefined,
+              Tags: createTagsList(desiredTags),
+            }),
+          );
           const ruleArn =
             (RuleArn as RuleArn | undefined) ??
             toRuleArn(region, accountId, eventBusName, ruleName);
@@ -385,17 +424,19 @@ export const RuleProvider = () =>
           const resolvedTargets =
             (news.targets as Input.Resolve<RuleTarget>[] | undefined) ?? [];
           const desiredTargetIds = new Set(resolvedTargets.map((t) => t.Id));
-          const observedTargets = yield* eventbridge
-            .listTargetsByRule({
-              Rule: ruleName,
-              EventBusName: eventBusParam,
-            })
-            .pipe(
-              Effect.map((r) => r.Targets ?? []),
-              Effect.catchTag("ResourceNotFoundException", () =>
-                Effect.succeed([] as eventbridge.Target[]),
+          const observedTargets = yield* retryEventBridgeTransients(
+            eventbridge
+              .listTargetsByRule({
+                Rule: ruleName,
+                EventBusName: eventBusParam,
+              })
+              .pipe(
+                Effect.map((r) => r.Targets ?? []),
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed([] as eventbridge.Target[]),
+                ),
               ),
-            );
+          );
           const removedTargetIds = observedTargets
             .map((t) => t.Id)
             .filter(
@@ -403,17 +444,19 @@ export const RuleProvider = () =>
             );
 
           if (removedTargetIds.length > 0) {
-            const response = yield* eventbridge
-              .removeTargets({
-                Rule: ruleName,
-                EventBusName: eventBusParam,
-                Ids: removedTargetIds,
-              })
-              .pipe(
-                Effect.catchTag("ResourceNotFoundException", () =>
-                  Effect.succeed(undefined),
+            const response = yield* retryEventBridgeTransients(
+              eventbridge
+                .removeTargets({
+                  Rule: ruleName,
+                  EventBusName: eventBusParam,
+                  Ids: removedTargetIds,
+                })
+                .pipe(
+                  Effect.catchTag("ResourceNotFoundException", () =>
+                    Effect.succeed(undefined),
+                  ),
                 ),
-              );
+            );
 
             if (response) {
               yield* assertRemoveTargetsSucceeded(response);
@@ -421,21 +464,35 @@ export const RuleProvider = () =>
           }
 
           if (resolvedTargets.length > 0) {
-            const response = yield* eventbridge.putTargets({
-              Rule: ruleName,
-              EventBusName: eventBusParam,
-              Targets: resolvedTargets.map(toTarget),
-            });
+            const response = yield* retryEventBridgeTransients(
+              eventbridge.putTargets({
+                Rule: ruleName,
+                EventBusName: eventBusParam,
+                Targets: resolvedTargets.map(toTarget),
+              }),
+            );
             yield* assertPutTargetsSucceeded(response);
           }
 
           // Sync tags — diff observed cloud tags against desired. Adoption
-          // and partial prior runs both converge here.
-          const observedTagsList = yield* eventbridge
-            .listTagsForResource({
-              ResourceARN: ruleArn,
-            })
-            .pipe(Effect.map((r) => r.Tags ?? []));
+          // and partial prior runs both converge here. We diff against
+          // freshly-fetched tags rather than `olds.tags`/`output.tags` so
+          // adopted rules with foreign tag sets converge on a single pass.
+          // `ResourceNotFoundException` catches a race where the rule was
+          // deleted between `putRule` and the tag sync — extremely
+          // unlikely in practice, but lets us fail soft instead of hard.
+          const observedTagsList = yield* retryEventBridgeTransients(
+            eventbridge
+              .listTagsForResource({
+                ResourceARN: ruleArn,
+              })
+              .pipe(
+                Effect.map((r) => r.Tags ?? []),
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed([] as eventbridge.Tag[]),
+                ),
+              ),
+          );
           const observedTags: Record<string, string> = {};
           for (const tag of observedTagsList) {
             if (tag.Key && tag.Value !== undefined) {
@@ -445,17 +502,33 @@ export const RuleProvider = () =>
           const { removed, upsert } = diffTags(observedTags, desiredTags);
 
           if (removed.length > 0) {
-            yield* eventbridge.untagResource({
-              ResourceARN: ruleArn,
-              TagKeys: removed,
-            });
+            yield* retryEventBridgeTransients(
+              eventbridge
+                .untagResource({
+                  ResourceARN: ruleArn,
+                  TagKeys: removed,
+                })
+                .pipe(
+                  Effect.catchTag("ResourceNotFoundException", () =>
+                    Effect.void,
+                  ),
+                ),
+            );
           }
 
           if (upsert.length > 0) {
-            yield* eventbridge.tagResource({
-              ResourceARN: ruleArn,
-              Tags: upsert,
-            });
+            yield* retryEventBridgeTransients(
+              eventbridge
+                .tagResource({
+                  ResourceARN: ruleArn,
+                  Tags: upsert,
+                })
+                .pipe(
+                  Effect.catchTag("ResourceNotFoundException", () =>
+                    Effect.void,
+                  ),
+                ),
+            );
           }
 
           yield* session.note(ruleArn);
@@ -471,40 +544,54 @@ export const RuleProvider = () =>
           const eventBusParam =
             eventBusName !== "default" ? eventBusName : undefined;
 
-          const { Targets } = yield* eventbridge
-            .listTargetsByRule({
-              Rule: ruleName,
-              EventBusName: eventBusParam,
-            })
-            .pipe(
-              Effect.catchTag("ResourceNotFoundException", () =>
-                Effect.succeed({ Targets: undefined }),
-              ),
-            );
-
-          if (Targets && Targets.length > 0) {
-            const response = yield* eventbridge
-              .removeTargets({
+          // EventBridge requires removing all targets before deleting the
+          // rule itself. List + remove is wrapped in a transient retry to
+          // ride out `ConcurrentModificationException` from peers.
+          const { Targets } = yield* retryEventBridgeTransients(
+            eventbridge
+              .listTargetsByRule({
                 Rule: ruleName,
                 EventBusName: eventBusParam,
-                Ids: Targets.map((t) => t.Id),
               })
               .pipe(
-                Effect.catchTag("ResourceNotFoundException", () => Effect.void),
-              );
+                Effect.catchTag("ResourceNotFoundException", () =>
+                  Effect.succeed({ Targets: undefined }),
+                ),
+              ),
+          );
+
+          if (Targets && Targets.length > 0) {
+            const response = yield* retryEventBridgeTransients(
+              eventbridge
+                .removeTargets({
+                  Rule: ruleName,
+                  EventBusName: eventBusParam,
+                  Ids: Targets.map((t) => t.Id),
+                })
+                .pipe(
+                  Effect.catchTag("ResourceNotFoundException", () =>
+                    Effect.void,
+                  ),
+                ),
+            );
             if (response) {
               yield* assertRemoveTargetsSucceeded(response);
             }
           }
 
-          yield* eventbridge
-            .deleteRule({
-              Name: ruleName,
-              EventBusName: eventBusParam,
-            })
-            .pipe(
-              Effect.catchTag("ResourceNotFoundException", () => Effect.void),
-            );
+          // Delete the rule. `ResourceNotFoundException` makes the destroy
+          // idempotent (already gone); `ConcurrentModificationException`
+          // is retried via the wrapper.
+          yield* retryEventBridgeTransients(
+            eventbridge
+              .deleteRule({
+                Name: ruleName,
+                EventBusName: eventBusParam,
+              })
+              .pipe(
+                Effect.catchTag("ResourceNotFoundException", () => Effect.void),
+              ),
+          );
         }),
       };
     }),
