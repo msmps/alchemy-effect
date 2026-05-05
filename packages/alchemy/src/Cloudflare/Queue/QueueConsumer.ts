@@ -140,6 +140,8 @@ export const QueueConsumerProvider = () =>
           // scan filtered by script so we recover from out-of-band
           // deletes or partial state-persistence failures (the create
           // call may have written the consumer but lost the response).
+          // Only swallow `ConsumerNotFound` / `QueueNotFound` here —
+          // auth/throttling/5xx must surface so the engine retries.
           let observed:
             | { consumerId?: string | null; script?: string | null }
             | undefined;
@@ -148,7 +150,12 @@ export const QueueConsumerProvider = () =>
               accountId: acct,
               queueId: output.queueId,
               consumerId: output.consumerId,
-            }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+            }).pipe(
+              Effect.catchTags({
+                ConsumerNotFound: () => Effect.succeed(undefined),
+                QueueNotFound: () => Effect.succeed(undefined),
+              }),
+            );
           }
           if (!observed) {
             const existing = yield* listConsumers({
@@ -160,9 +167,10 @@ export const QueueConsumerProvider = () =>
             );
           }
 
-          // Ensure — create if missing. The Cloudflare API rejects a
-          // duplicate consumer (same queue + script), so we tolerate
-          // that race by adopting the existing one via list.
+          // Ensure — create if missing. The Cloudflare API returns
+          // `ConsumerAlreadyExists` for a duplicate consumer (same queue
+          // + script); tolerate that race by adopting the existing one
+          // via list. Other failure classes propagate.
           let consumerId: string;
           if (!observed) {
             const created = yield* createConsumer({
@@ -173,7 +181,7 @@ export const QueueConsumerProvider = () =>
               deadLetterQueue: news.deadLetterQueue,
               settings: news.settings,
             }).pipe(
-              Effect.catch(() =>
+              Effect.catchTag("ConsumerAlreadyExists", () =>
                 Effect.gen(function* () {
                   const existing = yield* listConsumers({
                     accountId: acct,
@@ -216,11 +224,19 @@ export const QueueConsumerProvider = () =>
           };
         }),
         delete: Effect.fn(function* ({ output }) {
+          // `ConsumerNotFound` / `QueueNotFound` are the idempotent
+          // paths (already deleted, or queue gone, which removes its
+          // consumers). Anything else surfaces for engine retry.
           yield* deleteConsumer({
             accountId: output.accountId,
             queueId: output.queueId,
             consumerId: output.consumerId,
-          }).pipe(Effect.catch(() => Effect.void));
+          }).pipe(
+            Effect.catchTags({
+              ConsumerNotFound: () => Effect.void,
+              QueueNotFound: () => Effect.void,
+            }),
+          );
         }),
         read: Effect.fn(function* ({ output }) {
           if (output?.consumerId) {
@@ -238,7 +254,10 @@ export const QueueConsumerProvider = () =>
                     : output.scriptName) ?? output.scriptName,
                 accountId: output.accountId,
               })),
-              Effect.catch(() => Effect.succeed(undefined)),
+              Effect.catchTags({
+                ConsumerNotFound: () => Effect.succeed(undefined),
+                QueueNotFound: () => Effect.succeed(undefined),
+              }),
             );
           }
           return undefined;
