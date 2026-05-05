@@ -771,6 +771,30 @@ export default await Effect.runPromise(handlerEffect)
         };
       };
 
+      // Lambda's update-vs-update race: each update mutates the function and
+      // surfaces `LastUpdateStatus = InProgress` for several seconds. Issuing
+      // another `updateFunction*` before `Successful` returns
+      // `ResourceConflictException` ("update in progress"). Poll the status
+      // every second until it leaves `InProgress`, capped at 90s — well past
+      // the typical sub-30s convergence window on VPC-attached functions —
+      // then surface so we don't loop forever if Lambda stays in this state.
+      const waitForFunctionUpdateSuccessful = (functionName: string) =>
+        Lambda.getFunctionConfiguration({ FunctionName: functionName }).pipe(
+          Effect.flatMap((cfg) =>
+            cfg.LastUpdateStatus === "InProgress"
+              ? Effect.fail({ _tag: "FunctionUpdateInProgress" } as const)
+              : Effect.succeed(cfg),
+          ),
+          Effect.retry({
+            while: (e: { _tag: string }) =>
+              e._tag === "FunctionUpdateInProgress",
+            schedule: Schedule.fixed(1000).pipe(
+              Schedule.both(Schedule.recurs(90)),
+            ),
+          }),
+          Effect.catchTag("ResourceNotFoundException", () => Effect.void),
+        );
+
       const createOrUpdateFunction = Effect.fnUntraced(function* ({
         id,
         news,
@@ -870,6 +894,12 @@ export default await Effect.runPromise(handlerEffect)
           Effect.flatMap(() =>
             Effect.gen(function* () {
               yield* Effect.logDebug(`updating function code ${id}`);
+              // Wait for any in-flight update to converge so the next
+              // updateFunctionCode call doesn't surface
+              // `ResourceConflictException` ("update in progress").
+              yield* waitForFunctionUpdateSuccessful(
+                createFunctionRequest.FunctionName,
+              );
               yield* Lambda.updateFunctionCode({
                 FunctionName: createFunctionRequest.FunctionName,
                 Architectures: createFunctionRequest.Architectures,
@@ -886,14 +916,27 @@ export default await Effect.runPromise(handlerEffect)
                     ? noteRolePropagationWait()
                     : Effect.void,
                 ),
+                // Cap at 60 retries (~12 minutes max with exponential backoff
+                // from 100ms). `ResourceConflictException` here means another
+                // update is in progress — we already wait for it above, but
+                // a peer reconciler could race in between. Role propagation
+                // can take 30-60s on first deploy.
                 Effect.retry({
                   while: (e) =>
                     e._tag === "ResourceConflictException" ||
                     isRolePropagationError(e),
-                  schedule: Schedule.exponential(100),
+                  schedule: Schedule.exponential(100).pipe(
+                    Schedule.both(Schedule.recurs(60)),
+                  ),
                 }),
               );
               yield* Effect.logDebug(`updated function code ${id}`);
+              // updateFunctionCode -> InProgress -> Successful again. Wait
+              // before issuing updateFunctionConfiguration so we don't bounce
+              // back-to-back through `ResourceConflictException`.
+              yield* waitForFunctionUpdateSuccessful(
+                createFunctionRequest.FunctionName,
+              );
               yield* Lambda.updateFunctionConfiguration({
                 FunctionName: createFunctionRequest.FunctionName,
                 DeadLetterConfig: createFunctionRequest.DeadLetterConfig,
@@ -924,10 +967,18 @@ export default await Effect.runPromise(handlerEffect)
                   while: (e) =>
                     e._tag === "ResourceConflictException" ||
                     isRolePropagationError(e),
-                  schedule: Schedule.exponential(100),
+                  schedule: Schedule.exponential(100).pipe(
+                    Schedule.both(Schedule.recurs(60)),
+                  ),
                 }),
               );
               yield* Effect.logDebug(`updated function configuration ${id}`);
+              // Final wait so callers (e.g. createOrUpdateFunctionUrl,
+              // attachBindings on a downstream resource) don't immediately
+              // race the in-flight update.
+              yield* waitForFunctionUpdateSuccessful(
+                createFunctionRequest.FunctionName,
+              );
             }),
           ),
         );
@@ -938,10 +989,15 @@ export default await Effect.runPromise(handlerEffect)
               yield* Effect.logDebug(e);
             }),
           ),
+          // Role propagation through IAM is eventually consistent and
+          // typically completes in 10-30s. Cap at 120s so a misconfigured
+          // role (e.g. bad assume-role policy) eventually surfaces instead
+          // of looping forever.
           Effect.retry({
             while: (e) => isRolePropagationError(e),
             schedule: Schedule.fixed(1000).pipe(
               Schedule.tapOutput(() => noteRolePropagationWait()),
+              Schedule.both(Schedule.recurs(120)),
             ),
           }),
           Effect.catchTags({
@@ -1122,13 +1178,18 @@ export default await Effect.runPromise(handlerEffect)
               Effect.succeed({} as Record<string, string>),
             ),
           );
+          // `getFunctionUrlConfig` returns `ResourceConflictException` while
+          // a function URL is being created/updated. Bound the retry at 30s
+          // so a stuck URL config doesn't block read indefinitely.
           const functionUrl = yield* Lambda.getFunctionUrlConfig({
             FunctionName: fn.FunctionName,
           }).pipe(
             Effect.map((f) => f.FunctionUrl),
             Effect.retry({
               while: (e: any) => e._tag === "ResourceConflictException",
-              schedule: Schedule.exponential(100),
+              schedule: Schedule.exponential(100).pipe(
+                Schedule.both(Schedule.recurs(30)),
+              ),
             }),
             Effect.catchTag("ResourceNotFoundException", () =>
               Effect.succeed(undefined),
@@ -1249,6 +1310,9 @@ export default await Effect.runPromise(handlerEffect)
           };
         }),
         delete: Effect.fnUntraced(function* ({ output }) {
+          // The role may already be gone (out-of-band delete or partial
+          // earlier delete). Treat `NoSuchEntityException` from list calls
+          // as "no inline/attached policies to clean up" and continue.
           yield* iam
             .listRolePolicies({
               RoleName: output.roleName,
@@ -1257,13 +1321,21 @@ export default await Effect.runPromise(handlerEffect)
               Effect.flatMap((policies) =>
                 Effect.all(
                   (policies.PolicyNames ?? []).map((policyName) =>
-                    iam.deleteRolePolicy({
-                      RoleName: output.roleName,
-                      PolicyName: policyName,
-                    }),
+                    iam
+                      .deleteRolePolicy({
+                        RoleName: output.roleName,
+                        PolicyName: policyName,
+                      })
+                      .pipe(
+                        Effect.catchTag(
+                          "NoSuchEntityException",
+                          () => Effect.void,
+                        ),
+                      ),
                   ),
                 ),
               ),
+              Effect.catchTag("NoSuchEntityException", () => Effect.void),
             );
 
           yield* iam
@@ -1288,11 +1360,20 @@ export default await Effect.runPromise(handlerEffect)
                   ),
                 ),
               ),
+              Effect.catchTag("NoSuchEntityException", () => Effect.void),
             );
 
+          // `ResourceConflictException` from `deleteFunction` means the
+          // function is mid-update. Wait for it to finish, then retry.
           yield* Lambda.deleteFunction({
             FunctionName: output.functionName,
           }).pipe(
+            Effect.retry({
+              while: (e) => e._tag === "ResourceConflictException",
+              schedule: Schedule.exponential(500).pipe(
+                Schedule.both(Schedule.recurs(30)),
+              ),
+            }),
             Effect.catchTag("ResourceNotFoundException", () => Effect.void),
           );
 
