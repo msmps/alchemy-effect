@@ -182,3 +182,361 @@ const waitForServiceToBeDeleted = Effect.fn(function* (
 });
 
 class VpcServiceStillExists extends Data.TaggedError("VpcServiceStillExists") {}
+
+// ─────────────────────────────────────────────────────────────────────
+// Lifecycle convergence
+//
+// Reconcile must converge from any starting state — pristine, drifted,
+// out-of-band-deleted, or replaced — without leaning on `olds` as a
+// source of truth. The tests below pin down each starting state.
+// ─────────────────────────────────────────────────────────────────────
+
+const randomSuffix = () => Math.random().toString(36).slice(2, 8);
+
+test.provider(
+  "redeploy with same props is a no-op (reconcile is idempotent)",
+  (stack) =>
+    Effect.gen(function* () {
+      const { accountId } = yield* CloudflareEnvironment;
+
+      yield* stack.destroy();
+
+      const deploy = () =>
+        stack.deploy(
+          Effect.gen(function* () {
+            const tunnel = yield* Cloudflare.Tunnel("IdempotentTunnel", {
+              ingress: [{ service: "http://localhost:8080" }],
+              adopt: true,
+            });
+            return yield* Cloudflare.VpcService("IdempotentSvc", {
+              httpPort: 8080,
+              host: {
+                hostname: "idempotent.example.com",
+                resolverNetwork: { tunnelId: tunnel.tunnelId },
+              },
+              adopt: true,
+            });
+          }),
+        );
+
+      const v1 = yield* deploy();
+      const v2 = yield* deploy();
+
+      expect(v2.serviceId).toEqual(v1.serviceId);
+      expect(v2.serviceName).toEqual(v1.serviceName);
+      expect(v2.httpPort).toEqual(8080);
+
+      const fetched = yield* connectivity.getDirectoryService({
+        accountId,
+        serviceId: v2.serviceId,
+      });
+      expect(fetched.serviceId).toEqual(v1.serviceId);
+      expect(fetched.httpPort).toEqual(8080);
+
+      yield* stack.destroy();
+      yield* waitForServiceToBeDeleted(v1.serviceId, accountId);
+    }).pipe(logLevel),
+);
+
+test.provider(
+  "reconcile resets settings mutated out-of-band via the raw Cloudflare API",
+  (stack) =>
+    Effect.gen(function* () {
+      const { accountId } = yield* CloudflareEnvironment;
+
+      yield* stack.destroy();
+
+      const deploy = () =>
+        stack.deploy(
+          Effect.gen(function* () {
+            const tunnel = yield* Cloudflare.Tunnel("DriftTunnel", {
+              ingress: [{ service: "http://localhost:8080" }],
+              adopt: true,
+            });
+            return yield* Cloudflare.VpcService("DriftSvc", {
+              httpPort: 8080,
+              host: {
+                hostname: "drift.example.com",
+                resolverNetwork: { tunnelId: tunnel.tunnelId },
+              },
+              adopt: true,
+            });
+          }),
+        );
+
+      const v1 = yield* deploy();
+
+      // Mutate the live service out-of-band — change ports and
+      // hostname directly via the raw API (the kind of drift a manual
+      // edit in the Cloudflare dashboard would produce).
+      yield* connectivity.updateDirectoryService({
+        accountId,
+        serviceId: v1.serviceId,
+        name: v1.serviceName,
+        type: "http",
+        httpPort: 9999,
+        httpsPort: 9998,
+        host: {
+          hostname: "tampered.example.com",
+          resolverNetwork: {
+            tunnelId: (
+              v1.host as {
+                resolverNetwork: { tunnelId: string };
+              }
+            ).resolverNetwork.tunnelId,
+          },
+        },
+      });
+
+      // Re-deploy with the original desired props. Reconcile observes
+      // the service by id, then unconditionally PUTs the desired
+      // settings — the foreign drift is overwritten.
+      const v2 = yield* deploy();
+      expect(v2.serviceId).toEqual(v1.serviceId);
+
+      const fetched = yield* connectivity.getDirectoryService({
+        accountId,
+        serviceId: v2.serviceId,
+      });
+      expect(fetched.httpPort).toEqual(8080);
+      expect((fetched.host as { hostname?: string }).hostname).toEqual(
+        "drift.example.com",
+      );
+
+      yield* stack.destroy();
+      yield* waitForServiceToBeDeleted(v1.serviceId, accountId);
+    }).pipe(logLevel),
+);
+
+test.provider(
+  "reconcile re-creates a service that was deleted out-of-band",
+  (stack) =>
+    Effect.gen(function* () {
+      const { accountId } = yield* CloudflareEnvironment;
+
+      yield* stack.destroy();
+
+      const serviceName = `alchemy-test-vpcsvc-recreate-${randomSuffix()}`;
+
+      const deploy = () =>
+        stack.deploy(
+          Effect.gen(function* () {
+            const tunnel = yield* Cloudflare.Tunnel("RecreateTunnel", {
+              ingress: [{ service: "http://localhost:8080" }],
+              adopt: true,
+            });
+            return yield* Cloudflare.VpcService("RecreateSvc", {
+              name: serviceName,
+              httpPort: 8080,
+              host: {
+                hostname: "recreate.example.com",
+                resolverNetwork: { tunnelId: tunnel.tunnelId },
+              },
+              adopt: true,
+            });
+          }),
+        );
+
+      const v1 = yield* deploy();
+      expect(v1.serviceName).toEqual(serviceName);
+
+      // Delete the service out-of-band. Local state still references
+      // it, but Cloudflare no longer has it.
+      yield* connectivity.deleteDirectoryService({
+        accountId,
+        serviceId: v1.serviceId,
+      });
+      yield* waitForServiceToBeDeleted(v1.serviceId, accountId);
+
+      // Reconcile must catch `VpcServiceNotFound` from `getService`,
+      // fall through to `findServiceByName` (also empty), and create
+      // a fresh service.
+      const v2 = yield* deploy();
+      expect(v2.serviceName).toEqual(serviceName);
+      expect(v2.serviceId).not.toEqual(v1.serviceId);
+
+      const fresh = yield* connectivity.getDirectoryService({
+        accountId,
+        serviceId: v2.serviceId,
+      });
+      expect(fresh.serviceId).toEqual(v2.serviceId);
+
+      yield* stack.destroy();
+      yield* waitForServiceToBeDeleted(v2.serviceId, accountId);
+    }).pipe(logLevel),
+);
+
+test.provider(
+  "changing service name updates in place (name is mutable)",
+  (stack) =>
+    Effect.gen(function* () {
+      const { accountId } = yield* CloudflareEnvironment;
+
+      yield* stack.destroy();
+
+      const suffix = randomSuffix();
+      const nameA = `alchemy-test-vpcsvc-rename-a-${suffix}`;
+      const nameB = `alchemy-test-vpcsvc-rename-b-${suffix}`;
+
+      const deploy = (name: string) =>
+        stack.deploy(
+          Effect.gen(function* () {
+            const tunnel = yield* Cloudflare.Tunnel("RenameTunnel", {
+              ingress: [{ service: "http://localhost:8080" }],
+              adopt: true,
+            });
+            return yield* Cloudflare.VpcService("RenameSvc", {
+              name,
+              httpPort: 8080,
+              host: {
+                hostname: "rename.example.com",
+                resolverNetwork: { tunnelId: tunnel.tunnelId },
+              },
+              adopt: true,
+            });
+          }),
+        );
+
+      const a = yield* deploy(nameA);
+      expect(a.serviceName).toEqual(nameA);
+
+      const b = yield* deploy(nameB);
+      expect(b.serviceName).toEqual(nameB);
+      // diff returns `update`, not `replace` — same id, new name.
+      expect(b.serviceId).toEqual(a.serviceId);
+
+      const fetched = yield* connectivity.getDirectoryService({
+        accountId,
+        serviceId: b.serviceId,
+      });
+      expect(fetched.name).toEqual(nameB);
+
+      yield* stack.destroy();
+      yield* waitForServiceToBeDeleted(b.serviceId, accountId);
+    }).pipe(logLevel),
+);
+
+test.provider("destroying an already-deleted service is a no-op", (stack) =>
+  Effect.gen(function* () {
+    const { accountId } = yield* CloudflareEnvironment;
+
+    yield* stack.destroy();
+
+    const service = yield* stack.deploy(
+      Effect.gen(function* () {
+        const tunnel = yield* Cloudflare.Tunnel("DoubleDestroyTunnel", {
+          ingress: [{ service: "http://localhost:8080" }],
+          adopt: true,
+        });
+        return yield* Cloudflare.VpcService("DoubleDestroySvc", {
+          httpPort: 8080,
+          host: {
+            hostname: "doubledestroy.example.com",
+            resolverNetwork: { tunnelId: tunnel.tunnelId },
+          },
+          adopt: true,
+        });
+      }),
+    );
+
+    // Delete the service out-of-band so the next destroy hits the
+    // not-found path in provider.delete. The catchTag on
+    // `VpcServiceNotFound` must absorb the error cleanly.
+    yield* connectivity.deleteDirectoryService({
+      accountId,
+      serviceId: service.serviceId,
+    });
+    yield* waitForServiceToBeDeleted(service.serviceId, accountId);
+
+    // First destroy: state still references the deleted service; the
+    // engine calls provider.delete which must idempotently succeed.
+    yield* stack.destroy();
+
+    // Second destroy: state is gone; this is a true no-op.
+    yield* stack.destroy();
+  }).pipe(logLevel),
+);
+
+test.provider(
+  "adopt(true) re-claims a foreign service matching by name",
+  (stack) =>
+    Effect.gen(function* () {
+      const { accountId } = yield* CloudflareEnvironment;
+
+      yield* stack.destroy();
+
+      const serviceName = `alchemy-test-vpcsvc-adopt-${randomSuffix()}`;
+
+      // Phase 1 — provision a tunnel via the engine (we need a real
+      // tunnel id) but create the VPC service out-of-band so it has
+      // no engine ownership state.
+      const { tunnelId } = yield* stack.deploy(
+        Effect.gen(function* () {
+          const tunnel = yield* Cloudflare.Tunnel("AdoptTunnel", {
+            ingress: [{ service: "http://localhost:8080" }],
+            adopt: true,
+          });
+          return { tunnelId: tunnel.tunnelId };
+        }),
+      );
+
+      const foreign = yield* connectivity.createDirectoryService({
+        accountId,
+        name: serviceName,
+        type: "http",
+        httpPort: 8080,
+        host: {
+          hostname: "adopt.example.com",
+          resolverNetwork: { tunnelId },
+        },
+      });
+
+      // Phase 2 — without `adopt: true`, the create call should fail
+      // with `VpcServiceNameAlreadyExists` and reconcile must surface
+      // that error rather than silently take over the foreign service.
+      const refusal = yield* stack
+        .deploy(
+          Effect.gen(function* () {
+            const tunnel = yield* Cloudflare.Tunnel("AdoptTunnel", {
+              ingress: [{ service: "http://localhost:8080" }],
+              adopt: true,
+            });
+            return yield* Cloudflare.VpcService("AdoptSvc", {
+              name: serviceName,
+              httpPort: 8080,
+              host: {
+                hostname: "adopt.example.com",
+                resolverNetwork: { tunnelId: tunnel.tunnelId },
+              },
+            });
+          }),
+        )
+        .pipe(Effect.flip);
+      expect(refusal).toBeDefined();
+
+      // Phase 3 — with `adopt: true`, reconcile re-lists by name and
+      // takes over the existing service without creating a duplicate.
+      const adopted = yield* stack.deploy(
+        Effect.gen(function* () {
+          const tunnel = yield* Cloudflare.Tunnel("AdoptTunnel", {
+            ingress: [{ service: "http://localhost:8080" }],
+            adopt: true,
+          });
+          return yield* Cloudflare.VpcService("AdoptSvc", {
+            name: serviceName,
+            httpPort: 8080,
+            host: {
+              hostname: "adopt.example.com",
+              resolverNetwork: { tunnelId: tunnel.tunnelId },
+            },
+            adopt: true,
+          });
+        }),
+      );
+      expect(adopted.serviceName).toEqual(serviceName);
+      expect(adopted.serviceId).toEqual(foreign.serviceId);
+
+      yield* stack.destroy();
+      yield* waitForServiceToBeDeleted(foreign.serviceId!, accountId);
+    }).pipe(logLevel),
+);

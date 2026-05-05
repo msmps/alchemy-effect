@@ -170,12 +170,21 @@ export const VpcServiceProvider = () =>
           // Observe — re-fetch the cached service; fall back to a name
           // scan so we recover from out-of-band deletes or partial state
           // persistence failures.
+          //
+          // Scope the catch to `VpcServiceNotFound` only. A blanket
+          // catch would silently treat auth/throttling/5xx failures as
+          // "service missing" and drop us straight into a re-create —
+          // masking real failures and risking duplicate services.
           let observed: connectivity.GetDirectoryServiceResponse | undefined;
           if (output?.serviceId) {
             observed = yield* getService({
               accountId: acct,
               serviceId: output.serviceId,
-            }).pipe(Effect.catch(() => Effect.succeed(undefined)));
+            }).pipe(
+              Effect.catchTag("VpcServiceNotFound", () =>
+                Effect.succeed(undefined),
+              ),
+            );
           }
           if (!observed) {
             const match = yield* findServiceByName(name);
@@ -185,9 +194,11 @@ export const VpcServiceProvider = () =>
           }
 
           // Ensure — create if missing. Cloudflare rejects a duplicate
-          // name with a generic error; tolerate by adopting the existing
-          // service (when the caller opted in) and re-applying the
-          // desired configuration.
+          // name with `VpcServiceNameAlreadyExists`; recover by re-listing
+          // and adopting the existing service when the caller opted in.
+          // All other create errors (including `VpcTunnelNotFound`) must
+          // surface so transient auth/throttling/5xx don't masquerade as
+          // a name conflict.
           if (!observed || !observed.serviceId) {
             const result = yield* createService({
               accountId: acct,
@@ -197,12 +208,15 @@ export const VpcServiceProvider = () =>
               httpsPort: news.httpsPort,
               host: news.host,
             }).pipe(
-              Effect.catch((err: unknown) =>
+              Effect.catchTag("VpcServiceNameAlreadyExists", (err) =>
                 Effect.gen(function* () {
-                  if (!news.adopt) return yield* Effect.fail(err as never);
+                  // A duplicate-name response without `adopt` is a hard
+                  // failure: refusing here prevents accidental takeover
+                  // of a foreign service.
+                  if (!news.adopt) return yield* Effect.fail(err);
                   const existing = yield* findServiceByName(name);
                   if (!existing || !existing.serviceId) {
-                    return yield* Effect.fail(err as never);
+                    return yield* Effect.fail(err);
                   }
                   return yield* updateService({
                     accountId: acct,
@@ -221,7 +235,8 @@ export const VpcServiceProvider = () =>
 
           // Sync — the Cloudflare update API replaces all mutable fields
           // (name, ports, host) atomically, so always issue it so
-          // adoption and routine updates converge.
+          // adoption and routine updates converge against observed
+          // cloud state, overwriting any out-of-band drift.
           const result = yield* updateService({
             accountId: acct,
             serviceId: observed.serviceId,
@@ -234,10 +249,14 @@ export const VpcServiceProvider = () =>
           return formatVpcService(result, acct);
         }),
         delete: Effect.fn(function* ({ output }) {
+          // Idempotent destroy: a previously-deleted service must not
+          // surface as a hard error. `VpcServiceNotFound` is typed by
+          // the spec so we can scope the catch tightly — auth /
+          // throttling / 5xx still bubble up for the engine to retry.
           yield* deleteService({
             accountId: output.accountId,
             serviceId: output.serviceId,
-          }).pipe(Effect.catch(() => Effect.void));
+          }).pipe(Effect.catchTag("VpcServiceNotFound", () => Effect.void));
         }),
         read: Effect.fn(function* ({ id, output, olds }) {
           if (output?.serviceId) {
@@ -246,7 +265,9 @@ export const VpcServiceProvider = () =>
               serviceId: output.serviceId,
             }).pipe(
               Effect.map((s) => formatVpcService(s, output.accountId)),
-              Effect.catch(() => Effect.succeed(undefined)),
+              Effect.catchTag("VpcServiceNotFound", () =>
+                Effect.succeed(undefined),
+              ),
             );
           }
           const name = yield* createServiceName(id, olds?.name);
