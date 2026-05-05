@@ -290,14 +290,15 @@ export const TopicProvider = () =>
       };
     }),
     delete: Effect.fn(function* ({ output }) {
+      // SNS's deleteTopic is documented as idempotent (a missing topic still
+      // returns 200), but we still scope the catch to NotFoundException so a
+      // genuine InvalidParameterException (e.g. a malformed ARN persisted in
+      // state) surfaces instead of being silently swallowed.
       yield* sns
         .deleteTopic({
           TopicArn: output.topicArn,
         })
-        .pipe(
-          Effect.catchTag("NotFoundException", () => Effect.void),
-          Effect.catchTag("InvalidParameterException", () => Effect.void),
-        );
+        .pipe(Effect.catchTag("NotFoundException", () => Effect.void));
     }),
   });
 
@@ -392,14 +393,20 @@ const readTopic = Effect.fn(function* ({
         .pipe(
           Effect.map((response) => response.DataProtectionPolicy),
           Effect.catchTag("NotFoundException", () => Effect.succeed(undefined)),
+          // SNS rejects getDataProtectionPolicy on FIFO topics with
+          // InvalidParameterException — scope this catch to the policy
+          // call so it doesn't mask a 400 returned by the parallel
+          // getTopicAttributes / listTagsForResource calls (which would
+          // erroneously make the whole read return undefined and the
+          // engine treat the topic as missing).
+          Effect.catchTag("InvalidParameterException", () =>
+            Effect.succeed(undefined),
+          ),
         ),
     ],
     { concurrency: "unbounded" },
   ).pipe(
     Effect.catchTag("NotFoundException", () => Effect.succeed(undefined)),
-    Effect.catchTag("InvalidParameterException", () =>
-      Effect.succeed(undefined),
-    ),
   );
 
   if (!topicState) {
