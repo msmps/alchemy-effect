@@ -128,15 +128,20 @@ export const EIPProvider = () =>
 
         read: Effect.fn(function* ({ output }) {
           if (!output) return undefined;
-          const result = yield* ec2.describeAddresses({
-            AllocationIds: [output.allocationId],
-          });
+          const result = yield* ec2
+            .describeAddresses({
+              AllocationIds: [output.allocationId],
+            })
+            .pipe(
+              Effect.catchTag("InvalidAllocationID.NotFound", () =>
+                Effect.succeed({ Addresses: [] }),
+              ),
+            );
 
           const address = result.Addresses?.[0];
           if (!address) {
-            return yield* Effect.fail(
-              new Error(`EIP ${output.allocationId} not found`),
-            );
+            // Released out-of-band — let the engine recreate via reconcile.
+            return undefined;
           }
 
           return {
@@ -263,19 +268,20 @@ export const EIPProvider = () =>
                 "InvalidAllocationID.NotFound",
                 () => Effect.void,
               ),
-              Effect.catchTag("AuthFailure", () => Effect.void),
+              // NOTE: previously caught `AuthFailure` here as a no-op; that
+              // turned credential / permission errors into silent successes.
+              // Drop the catch so auth errors actually surface.
               Effect.tapError(Effect.logDebug),
-              // Retry when EIP is still in use (e.g., NAT Gateway being deleted)
+              // Retry when the EIP is still attached. AWS surfaces this as
+              // `InvalidIPAddress.InUse` when the address is bound to a
+              // resource (NAT Gateway, NIC, instance) that is mid-teardown
+              // by a sibling reconciler.
+              //
+              // distilled doesn't categorize `releaseAddress` as throwing
+              // `DependencyViolation`; if AWS ever surfaces it here, it
+              // would need to be added in a distilled patch.
               Effect.retry({
-                while: (e) => {
-                  return (
-                    // TODO(sam): not sure if the API will actually throw this
-                    // e._tag === "DependencyViolation" ||
-                    // this throws if the address hasn't been disassociated from all resources
-                    // we will retry it assuming that another resource provider is dissassociating it (e.g. a NAT Gateway resource is being deleted)
-                    e._tag === "InvalidIPAddress.InUse"
-                  );
-                },
+                while: (e) => e._tag === "InvalidIPAddress.InUse",
                 schedule: Schedule.exponential(1000, 1.5).pipe(
                   Schedule.both(Schedule.recurs(20)),
                   Schedule.tapOutput(([, attempt]) =>

@@ -193,13 +193,21 @@ export const InternetGatewayProvider = () =>
             `Deleting internet gateway: ${internetGatewayId}`,
           );
 
-          // Re-describe to get current attachments from AWS (don't rely on stored state)
-          // This handles cases where state is incomplete from a previous crashed run
-          const igw = yield* describeInternetGateway(
-            internetGatewayId,
-            session,
-          ).pipe(Effect.catch(() => Effect.succeed({ Attachments: [] })));
-          const attachments = igw.Attachments ?? [];
+          // Re-describe to get current attachments from AWS (don't rely on
+          // stored state). Scope the catch tightly to NotFound — anything
+          // else (auth, throttling) must surface, not silently treat the
+          // IGW as unattached.
+          const igw = yield* ec2
+            .describeInternetGateways({
+              InternetGatewayIds: [internetGatewayId],
+            })
+            .pipe(
+              Effect.map((r) => r.InternetGateways?.[0]),
+              Effect.catchTag("InvalidInternetGatewayID.NotFound", () =>
+                Effect.succeed(undefined),
+              ),
+            );
+          const attachments = igw?.Attachments ?? [];
 
           // 1. Detach from all VPCs first
           if (attachments.length > 0) {
@@ -249,13 +257,11 @@ export const InternetGatewayProvider = () =>
               ),
               // Retry on dependency violations
               Effect.retry({
-                while: (e) => {
-                  return (
-                    e._tag === "DependencyViolation" ||
-                    (e._tag === "ValidationError" &&
-                      e.message?.includes("DependencyViolation"))
-                  );
-                },
+                // distilled tags `DependencyViolation` directly via
+                // `withDependencyViolationError`; the substring branch on
+                // `ValidationError` was dead and swallowed real validation
+                // errors (see #189).
+                while: (e) => e._tag === "DependencyViolation",
                 schedule: Schedule.fixed(5000).pipe(
                   Schedule.both(Schedule.recurs(60)), // Up to 5 minutes
                   Schedule.tapOutput(([, attempt]) =>

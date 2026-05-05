@@ -125,9 +125,21 @@ export const EgressOnlyInternetGatewayProvider = () =>
 
         read: Effect.fn(function* ({ output }) {
           if (!output) return undefined;
-          const gw = yield* describeEgressOnlyInternetGateway(
-            output.egressOnlyInternetGatewayId,
-          );
+          const result = yield* ec2
+            .describeEgressOnlyInternetGateways({
+              EgressOnlyInternetGatewayIds: [
+                output.egressOnlyInternetGatewayId,
+              ],
+            })
+            .pipe(
+              Effect.catchTag(
+                "InvalidEgressOnlyInternetGatewayId.NotFound",
+                () => Effect.succeed({ EgressOnlyInternetGateways: [] }),
+              ),
+            );
+          const gw = result.EgressOnlyInternetGateways?.[0];
+          // Deleted out-of-band — let reconcile recreate.
+          if (!gw) return undefined;
           return toAttrs(gw);
         }),
 

@@ -231,14 +231,19 @@ export const RouteTableAssociationProvider = () =>
             `Deleting route table association: ${output.associationId}`,
           );
 
-          // Disassociate the route table
+          // Disassociate the route table. A missing association id (e.g.
+          // disassociated out-of-band, or the route table was cascade-
+          // deleted) is treated as success. distilled tags
+          // `disassociateRouteTable` with `InvalidAssociationID.NotFound`
+          // but not `InvalidRouteTableID.NotFound`; the former is what AWS
+          // surfaces in both cases.
           yield* ec2
             .disassociateRouteTable({
               AssociationId: output.associationId,
               DryRun: false,
             })
             .pipe(
-              Effect.tapError(Effect.log),
+              Effect.tapError(Effect.logDebug),
               Effect.catchTag(
                 "InvalidAssociationID.NotFound",
                 () => Effect.void,

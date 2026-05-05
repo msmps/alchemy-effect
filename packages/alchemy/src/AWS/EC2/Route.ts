@@ -193,6 +193,12 @@ export const RouteProvider = () =>
                   schedule: Schedule.exponential(100),
                 }),
               );
+            // NOTE: AWS can surface a `RouteAlreadyExists` if a sibling
+            // reconcile created the same (rtb, dest) pair — distilled
+            // doesn't tag it today, so we rely on the observe-first flow
+            // (which already finds the route and skips create). If a race
+            // does land us here on a pre-existing route, the next reconcile
+            // will replaceRoute the target into shape.
             yield* session.note(`Route created: ${dest}`);
           } else {
             yield* ec2.replaceRoute(targetParams).pipe(

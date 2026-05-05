@@ -180,14 +180,21 @@ export const NatGatewayProvider = () =>
       });
 
       const describeNatGateway = (natGatewayId: string) =>
-        ec2.describeNatGateways({ NatGatewayIds: [natGatewayId] }).pipe(
-          Effect.map((r) => r.NatGateways?.[0]),
-          Effect.flatMap((gw) =>
-            gw
-              ? Effect.succeed(gw)
-              : Effect.fail(new Error(`NAT Gateway ${natGatewayId} not found`)),
-          ),
-        );
+        ec2
+          .describeNatGateways({ NatGatewayIds: [natGatewayId] })
+          .pipe(
+            Effect.catchTag("NatGatewayNotFound", () =>
+              Effect.succeed({ NatGateways: [] }),
+            ),
+            Effect.map((r) => r.NatGateways?.[0]),
+            Effect.flatMap((gw) =>
+              gw
+                ? Effect.succeed(gw)
+                : Effect.fail(
+                    new Error(`NAT Gateway ${natGatewayId} not found`),
+                  ),
+            ),
+          );
 
       const toAttrs = (gw: ec2.NatGateway): NatGateway["Attributes"] => {
         const primaryAddress =
@@ -243,13 +250,29 @@ export const NatGatewayProvider = () =>
 
         read: Effect.fn(function* ({ id, output }) {
           if (output) {
-            // We have the NAT Gateway ID, use it directly
-            return toAttrs(yield* describeNatGateway(output.natGatewayId));
+            // We have the NAT Gateway ID, use it directly. Tolerate a NAT
+            // that was deleted out-of-band — the engine will recreate.
+            const gw = yield* ec2
+              .describeNatGateways({ NatGatewayIds: [output.natGatewayId] })
+              .pipe(
+                Effect.catchTag("NatGatewayNotFound", () =>
+                  Effect.succeed({ NatGateways: [] }),
+                ),
+              );
+            const found = gw.NatGateways?.[0];
+            if (
+              !found ||
+              found.State === "deleted" ||
+              found.State === "deleting"
+            ) {
+              return undefined;
+            }
+            return toAttrs(found);
           }
 
           // No output - try to find by tags (recovery from incomplete create)
           const gw = yield* findNatGatewayByTags(id);
-          if (gw) {
+          if (gw && gw.State !== "deleted" && gw.State !== "deleting") {
             return toAttrs(gw);
           }
 
@@ -373,6 +396,11 @@ export const NatGatewayProvider = () =>
 
           yield* session.note(`Deleting NAT Gateway: ${natGatewayId}`);
 
+          // NOTE: distilled does not categorize `deleteNatGateway` as
+          // throwing `DependencyViolation`. NAT Gateways don't have
+          // delete-blocking dependencies in practice (routes referencing
+          // a deleted NAT just go to blackhole state), so a tagged retry
+          // would never fire today.
           yield* ec2
             .deleteNatGateway({
               NatGatewayId: natGatewayId,
