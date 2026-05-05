@@ -62,6 +62,15 @@ export type ApiTokenProps = {
   notBefore?: string;
   /** Optional usage conditions (e.g. IP allowlist). */
   condition?: ApiTokenCondition;
+  /**
+   * Rotate the token's secret value. Cloudflare returns the plaintext value
+   * only once (on create), so to rotate it later we must call the
+   * `roll` endpoint. Provide any opaque string here (e.g. an ISO date or
+   * version label); when the value differs from the previously persisted
+   * value, the next reconcile rolls the secret and stores the new
+   * Redacted value in `output.value`.
+   */
+  rollKey?: string;
 };
 
 export type ResolvedPolicy = {
@@ -123,6 +132,68 @@ export const conditionFingerprint = (
     in: [...(condition?.requestIp?.in ?? [])].sort(),
     notIn: [...(condition?.requestIp?.notIn ?? [])].sort(),
   });
+
+/**
+ * Compute a fingerprint of an *observed* token (`getToken` response)'s
+ * policies. The observed shape is more permissive (nullable fields,
+ * extra `id`/`name` on permission groups), so normalize before hashing
+ * so we can compare with `policyFingerprint(resolvePolicies(...))`.
+ */
+export const observedPolicyFingerprint = (
+  policies:
+    | {
+        effect: "allow" | "deny";
+        permissionGroups: { id: string; meta?: unknown }[];
+        resources: Record<string, unknown>;
+      }[]
+    | null
+    | undefined,
+): string =>
+  policyFingerprint(
+    (policies ?? []).map((p) => ({
+      effect: p.effect,
+      permissionGroups: p.permissionGroups.map((g) => {
+        const meta = g.meta as
+          | { key?: string; value?: string }
+          | null
+          | undefined;
+        return meta && (meta.key !== undefined || meta.value !== undefined)
+          ? {
+              id: g.id,
+              meta: {
+                key: meta.key,
+                value: meta.value,
+              },
+            }
+          : { id: g.id };
+      }),
+      resources: p.resources ?? {},
+    })),
+  );
+
+/**
+ * Normalize an observed `condition` payload (which may have nullable
+ * inner fields) to the shape `conditionFingerprint` expects.
+ */
+export const observedCondition = (
+  condition:
+    | {
+        requestIp?:
+          | { in?: string[] | null; notIn?: string[] | null }
+          | null;
+      }
+    | null
+    | undefined,
+): ApiTokenCondition | undefined => {
+  if (!condition?.requestIp) return undefined;
+  const { in: ins, notIn } = condition.requestIp;
+  return {
+    requestIp: {
+      in: ins ?? undefined,
+      notIn: notIn ?? undefined,
+    },
+  };
+};
 
 export const buildConditionPayload = (
   condition: ApiTokenCondition | undefined,
