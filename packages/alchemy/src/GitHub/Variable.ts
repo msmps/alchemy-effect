@@ -102,80 +102,77 @@ export interface Variable extends Resource<
  */
 export const Variable = Resource<Variable>("GitHub.Variable");
 
-const getOctokit = Effect.gen(function* () {
-  const creds = yield* GitHubCredentials;
-  return creds.octokit();
-});
-
 export const VariableProvider = () =>
-  Provider.succeed(Variable, {
-    reconcile: Effect.fn(function* ({ news }) {
-      const octokit = yield* getOctokit;
-
-      // Observe — `name` is the path identifier for repo variables; ask
-      // GitHub directly for the live row. A 404 means it doesn't exist
-      // (deleted out-of-band, or never created), so we converge by
-      // creating it; otherwise we PATCH the value.
-      const observed = yield* Effect.tryPromise({
-        try: async () => {
-          try {
-            const { data } = await octokit.rest.actions.getRepoVariable({
-              owner: news.owner,
-              repo: news.repository,
-              name: news.name,
-            });
-            return data;
-          } catch (error: any) {
-            if (error.status === 404) return undefined;
-            throw error;
-          }
-        },
-        catch: (e) => e as Error,
-      });
-
-      // Ensure — POST creates the variable.
-      if (observed === undefined) {
-        yield* Effect.tryPromise(() =>
-          octokit.rest.actions.createRepoVariable({
-            owner: news.owner,
-            repo: news.repository,
-            name: news.name,
-            value: news.value,
-          }),
-        );
-        return { updatedAt: new Date().toISOString() };
-      }
-
-      // Sync — PATCH the value if it drifted; skip the call when the
-      // observed value already matches to keep the API quiet.
-      if (observed.value !== news.value) {
-        yield* Effect.tryPromise(() =>
-          octokit.rest.actions.updateRepoVariable({
-            owner: news.owner,
-            repo: news.repository,
-            name: news.name,
-            value: news.value,
-          }),
-        );
-      }
-      return { updatedAt: new Date().toISOString() };
-    }),
-
-    delete: Effect.fn(function* ({ olds }) {
-      const octokit = yield* getOctokit;
-
-      yield* Effect.tryPromise(async () => {
-        try {
-          await octokit.rest.actions.deleteRepoVariable({
-            owner: olds.owner,
-            repo: olds.repository,
-            name: olds.name,
+  Provider.effect(
+    Variable,
+    Effect.gen(function* () {
+      const octokit = (yield* GitHubCredentials).octokit();
+      return {
+        reconcile: Effect.fn(function* ({ news }) {
+          // Observe — `name` is the path identifier for repo variables; ask
+          // GitHub directly for the live row. A 404 means it doesn't exist
+          // (deleted out-of-band, or never created), so we converge by
+          // creating it; otherwise we PATCH the value.
+          const observed = yield* Effect.tryPromise({
+            try: async () => {
+              try {
+                const { data } = await octokit.rest.actions.getRepoVariable({
+                  owner: news.owner,
+                  repo: news.repository,
+                  name: news.name,
+                });
+                return data;
+              } catch (error: any) {
+                if (error.status === 404) return undefined;
+                throw error;
+              }
+            },
+            catch: (e) => e as Error,
           });
-        } catch (error: any) {
-          if (error.status !== 404) {
-            throw error;
+
+          // Ensure — POST creates the variable.
+          if (observed === undefined) {
+            yield* Effect.tryPromise(() =>
+              octokit.rest.actions.createRepoVariable({
+                owner: news.owner,
+                repo: news.repository,
+                name: news.name,
+                value: news.value,
+              }),
+            );
+            return { updatedAt: new Date().toISOString() };
           }
-        }
-      });
+
+          // Sync — PATCH the value if it drifted; skip the call when the
+          // observed value already matches to keep the API quiet.
+          if (observed.value !== news.value) {
+            yield* Effect.tryPromise(() =>
+              octokit.rest.actions.updateRepoVariable({
+                owner: news.owner,
+                repo: news.repository,
+                name: news.name,
+                value: news.value,
+              }),
+            );
+          }
+          return { updatedAt: new Date().toISOString() };
+        }),
+
+        delete: Effect.fn(function* ({ olds }) {
+          yield* Effect.tryPromise(async () => {
+            try {
+              await octokit.rest.actions.deleteRepoVariable({
+                owner: olds.owner,
+                repo: olds.repository,
+                name: olds.name,
+              });
+            } catch (error: any) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+          });
+        }),
+      };
     }),
-  });
+  );

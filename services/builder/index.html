@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>alchemy builds</title>
+    <style>
+      :root {
+        color-scheme: dark light;
+        --bg: #0b0d10;
+        --panel: #14181d;
+        --border: #232a32;
+        --text: #e7edf3;
+        --muted: #8a96a3;
+        --accent: #6ea1ff;
+        --ok: #5fd47b;
+        --err: #ff7676;
+        --running: #f3c969;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        height: 100%;
+      }
+      #root {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

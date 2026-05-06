@@ -1,10 +1,10 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as GitHub from "alchemy/GitHub";
-import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import Worker from "./src/Worker.ts";
+import { WebhookSecret } from "./src/WebhookSecret.ts";
 
 /**
  * Stack: a self-hosted CI service running on Cloudflare. Watches a single
@@ -34,33 +34,25 @@ export default Alchemy.Stack(
       adopt: true,
     });
 
-    // Random secret for webhook HMAC. Persisted in state so subsequent
-    // deploys keep the same secret unless the resource is replaced.
-    const webhookSecret = yield* Alchemy.Random("webhook-secret");
+    // Mint (or look up) the webhook HMAC secret and upload it into the
+    // account-wide Cloudflare Secrets Store. The same value is bound
+    // into the worker for runtime signature verification AND embedded
+    // in every `GitHub.Webhook` resource the runtime auto-creates from
+    // `GitHub.on(...)` subscriptions.
+    yield* WebhookSecret;
 
-    // The Worker hosts the dispatcher and reads the secret out of its
-    // GITHUB_WEBHOOK_SECRET env binding (wired separately at deploy time
-    // via wrangler / dashboard / Cloudflare.SecretsStore).
     const worker = yield* Worker;
 
-    // Install the actual GitHub webhook to point at the worker URL.
-    yield* GitHub.Webhook("hook", {
-      owner: REPO.owner,
-      repository: REPO.name,
-      url: Output.interpolate`${worker.url}/__github/webhook`,
-      secret: webhookSecret.text,
-      events: [
-        "push",
-        "pull_request",
-        "pull_request_review",
-        "pull_request_review_comment",
-        "issue_comment",
-        "release",
-      ],
-    });
+    // SPA that talks to the API worker. Lives at the package root —
+    // index.html + src/main.tsx — so Vite finds it with no rootDir.
+    // The SPA reads the API URL from `localStorage` (or prompts on
+    // first load) since `Cloudflare.Vite` doesn't currently take
+    // build-time env vars; set it once after the first deploy.
+    const web = yield* Cloudflare.Vite("Web");
 
     return {
       workerUrl: worker.url,
+      webUrl: web.url,
     };
   }),
 );

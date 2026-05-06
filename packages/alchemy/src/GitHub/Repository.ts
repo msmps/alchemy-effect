@@ -61,6 +61,15 @@ export interface RepositoryProps {
   adopt?: boolean;
 
   /**
+   * If `true`, the repository will be deleted from GitHub when the resource
+   * is destroyed. Defaults to `false` to avoid accidental data loss — by
+   * default the resource is removed from Alchemy state but the repo on
+   * GitHub is left intact.
+   * @default false
+   */
+  delete?: boolean;
+
+  /**
    * Optional override for the GitHub auth token. Defaults to
    * `GITHUB_ACCESS_TOKEN` / `GITHUB_TOKEN` / `gh auth token` via the
    * `GitHubCredentials` service.
@@ -135,132 +144,136 @@ export interface Repository extends Resource<
  */
 export const Repository = Resource<Repository>("GitHub.Repository");
 
-const getOctokit = Effect.gen(function* () {
-  const creds = yield* GitHubCredentials;
-  return creds.octokit();
-});
-
 const ownershipTopic = (id: string) => `alchemy.${id.toLowerCase()}`;
 
 export const RepositoryProvider = () =>
-  Provider.succeed(Repository, {
-    stables: ["repositoryId", "nodeId"],
-
-    reconcile: Effect.fn(function* ({ id, news, output }) {
-      const octokit = yield* getOctokit;
-      const marker = ownershipTopic(id);
-      const desiredTopics = Array.from(
-        new Set([...(news.topics ?? []), marker]),
-      );
-
-      // Observe — try to fetch the repo; treat 404 as "missing".
-      const observed = yield* Effect.tryPromise({
-        try: async () => {
-          try {
-            const { data } = await octokit.rest.repos.get({
-              owner: news.owner,
-              repo: news.name,
-            });
-            return data;
-          } catch (e: any) {
-            if (e.status === 404) return undefined;
-            throw e;
-          }
-        },
-        catch: (e) => e as Error,
-      });
-
-      // Ensure — create when missing. We do not check for ownership marker
-      // when `adopt: true`; the engine adoption flow handled that upstream.
-      let current = observed;
-      if (current === undefined) {
-        const { data } = yield* Effect.tryPromise(async () => {
-          // GitHub uses different endpoints for user vs organization repos;
-          // probe the owner type and dispatch.
-          const ownerInfo = await octokit.rest.users
-            .getByUsername({ username: news.owner })
-            .catch((e: any) => {
-              if (e.status === 404) return undefined;
-              throw e;
-            });
-          if (ownerInfo?.data.type === "Organization") {
-            return octokit.rest.repos.createInOrg({
-              org: news.owner,
-              name: news.name,
-              description: news.description,
-              private: news.private ?? false,
-              has_issues: news.hasIssues ?? true,
-              auto_init: news.autoInit ?? false,
-            });
-          }
-          return octokit.rest.repos.createForAuthenticatedUser({
-            name: news.name,
-            description: news.description,
-            private: news.private ?? false,
-            has_issues: news.hasIssues ?? true,
-            auto_init: news.autoInit ?? false,
-          });
-        });
-        current = data;
-      }
-
-      // Sync — patch metadata if it drifted.
-      const needsPatch =
-        current.description !== (news.description ?? null) ||
-        (news.hasIssues !== undefined &&
-          current.has_issues !== news.hasIssues) ||
-        (news.defaultBranch !== undefined &&
-          current.default_branch !== news.defaultBranch);
-      if (needsPatch) {
-        const { data } = yield* Effect.tryPromise(() =>
-          octokit.rest.repos.update({
-            owner: news.owner,
-            repo: news.name,
-            description: news.description,
-            has_issues: news.hasIssues,
-            default_branch: news.defaultBranch,
-          }),
-        );
-        current = data;
-      }
-
-      // Sync topics — replace with desired set whenever the observed list
-      // doesn't already match.
-      const observedTopics = new Set(current.topics ?? []);
-      const sameTopics =
-        observedTopics.size === desiredTopics.length &&
-        desiredTopics.every((t) => observedTopics.has(t));
-      if (!sameTopics) {
-        yield* Effect.tryPromise(() =>
-          octokit.rest.repos.replaceAllTopics({
-            owner: news.owner,
-            repo: news.name,
-            names: desiredTopics,
-          }),
-        );
-      }
-
+  Provider.effect(
+    Repository,
+    Effect.gen(function* () {
+      const octokit = (yield* GitHubCredentials).octokit();
       return {
-        repositoryId: current.id,
-        nodeId: current.node_id,
-        fullName: current.full_name,
-        htmlUrl: current.html_url,
-        cloneUrl: current.clone_url,
-        defaultBranch: current.default_branch,
+        stables: ["repositoryId", "nodeId"],
+
+        reconcile: Effect.fn(function* ({ id, news, output }) {
+          const marker = ownershipTopic(id);
+          const desiredTopics = Array.from(
+            new Set([...(news.topics ?? []), marker]),
+          );
+
+          // Observe — try to fetch the repo; treat 404 as "missing".
+          const observed = yield* Effect.tryPromise({
+            try: async () => {
+              try {
+                const { data } = await octokit.rest.repos.get({
+                  owner: news.owner,
+                  repo: news.name,
+                });
+                return data;
+              } catch (e: any) {
+                if (e.status === 404) return undefined;
+                throw e;
+              }
+            },
+            catch: (e) => e as Error,
+          });
+
+          // Ensure — create when missing. We do not check for ownership marker
+          // when `adopt: true`; the engine adoption flow handled that upstream.
+          let current = observed;
+          if (current === undefined) {
+            const { data } = yield* Effect.tryPromise(async () => {
+              // GitHub uses different endpoints for user vs organization repos;
+              // probe the owner type and dispatch.
+              const ownerInfo = await octokit.rest.users
+                .getByUsername({ username: news.owner })
+                .catch((e: any) => {
+                  if (e.status === 404) return undefined;
+                  throw e;
+                });
+              if (ownerInfo?.data.type === "Organization") {
+                return octokit.rest.repos.createInOrg({
+                  org: news.owner,
+                  name: news.name,
+                  description: news.description,
+                  private: news.private ?? false,
+                  has_issues: news.hasIssues ?? true,
+                  auto_init: news.autoInit ?? false,
+                });
+              }
+              return octokit.rest.repos.createForAuthenticatedUser({
+                name: news.name,
+                description: news.description,
+                private: news.private ?? false,
+                has_issues: news.hasIssues ?? true,
+                auto_init: news.autoInit ?? false,
+              });
+            });
+            current = data;
+          }
+
+          // Sync — patch metadata if it drifted.
+          const needsPatch =
+            current.description !== (news.description ?? null) ||
+            (news.hasIssues !== undefined &&
+              current.has_issues !== news.hasIssues) ||
+            (news.defaultBranch !== undefined &&
+              current.default_branch !== news.defaultBranch);
+          if (needsPatch) {
+            const { data } = yield* Effect.tryPromise(() =>
+              octokit.rest.repos.update({
+                owner: news.owner,
+                repo: news.name,
+                description: news.description,
+                has_issues: news.hasIssues,
+                default_branch: news.defaultBranch,
+              }),
+            );
+            current = data;
+          }
+
+          // Sync topics — replace with desired set whenever the observed list
+          // doesn't already match.
+          const observedTopics = new Set(current.topics ?? []);
+          const sameTopics =
+            observedTopics.size === desiredTopics.length &&
+            desiredTopics.every((t) => observedTopics.has(t));
+          if (!sameTopics) {
+            yield* Effect.tryPromise(() =>
+              octokit.rest.repos.replaceAllTopics({
+                owner: news.owner,
+                repo: news.name,
+                names: desiredTopics,
+              }),
+            );
+          }
+
+          return {
+            repositoryId: current.id,
+            nodeId: current.node_id,
+            fullName: current.full_name,
+            htmlUrl: current.html_url,
+            cloneUrl: current.clone_url,
+            defaultBranch: current.default_branch,
+          };
+        }),
+
+        delete: Effect.fn(function* ({ olds }) {
+          // Only delete the GitHub repo when the user explicitly opted in via
+          // `delete: true`. Otherwise we just drop the resource from state and
+          // leave the repo on GitHub intact.
+          if (!olds.delete) return;
+          // TODO(sam): add this back in when no longer terrifed of blowing my head off
+          // yield* Effect.tryPromise(async () => {
+          //   try {
+          //     await octokit.rest.repos.delete({
+          //       owner: olds.owner,
+          //       repo: olds.name,
+          //     });
+          //   } catch (e: any) {
+          //     if (e.status !== 404) throw e;
+          //   }
+          // });
+        }),
       };
     }),
-
-    delete: Effect.fn(function* ({ olds }) {
-      const octokit = yield* getOctokit;
-      yield* Effect.tryPromise(async () => {
-        try {
-          await octokit.rest.repos.delete({
-            owner: olds.owner,
-            repo: olds.name,
-          });
-        } catch (e: any) {
-          if (e.status !== 404) throw e;
-        }
-      });
-    }),
-  });
+  );

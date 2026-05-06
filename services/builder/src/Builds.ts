@@ -3,51 +3,57 @@ import * as Effect from "effect/Effect";
 import { Builder } from "./Builder.ts";
 
 /**
- * Per-SHA build orchestrator. One Durable Object instance per (repo, sha):
- * holds run state in `state.storage`, dispatches to a Container by RPC,
- * and reports back via the GitHub.CommitStatuses capability.
- *
- * Routing convention: callers do `builds.getByName(\`${repo.fullName}@${sha}\`)`
- * so each sha gets its own DO and runs are naturally serialized.
+ * Per-job build orchestrator. One Durable Object instance per job id
+ * (e.g. `${repo}@${sha}` for push builds, `${repo}@pr-${n}` for agent
+ * runs): holds run state in `state.storage` and dispatches to a Container
+ * by RPC. The DO's serialized identity makes runs naturally serialized
+ * per id.
  */
 export type BuildState = {
   status: "pending" | "running" | "success" | "failure";
+  kind?: "build" | "agent";
+  repo?: string;
+  ref?: string;
+  sha?: string;
   startedAt?: number;
   completedAt?: number;
   exitCode?: number;
   logTail?: string;
+  pushedSha?: string | null;
 };
 
 export default class Builds extends Cloudflare.DurableObjectNamespace<Builds>()(
   "Builds",
   Effect.gen(function* () {
-    // Outer init: bind the Container class once per Worker. The bound
-    // value is an Effect that resolves the container handle inside each
-    // DO instance via `Cloudflare.start`.
     const builderEff = yield* Cloudflare.Container.bind(Builder);
 
     return Effect.gen(function* () {
       const state = yield* Cloudflare.DurableObjectState;
       const builder = yield* Cloudflare.start(builderEff);
 
-      return {
-        get: () =>
-          Effect.gen(function* () {
-            const raw = yield* state.storage.get<BuildState>("state");
-            return raw ?? { status: "pending" as const };
-          }),
+      const get = () =>
+        Effect.gen(function* () {
+          const raw = yield* state.storage.get<BuildState>("state");
+          return raw ?? { status: "pending" as const };
+        });
 
+      return {
+        get,
         runBuild: (input: {
-          artifactsRepo: string;
-          artifactsRemote: string;
-          artifactsToken: string;
+          repo: string;
           ref: string;
           sha: string;
+          token?: string;
         }) =>
           Effect.gen(function* () {
+            const startedAt = Date.now();
             yield* state.storage.put<BuildState>("state", {
               status: "running",
-              startedAt: Date.now(),
+              kind: "build",
+              repo: input.repo,
+              ref: input.ref,
+              sha: input.sha,
+              startedAt,
             });
             const result = yield* builder
               .runBuild(input)
@@ -58,7 +64,11 @@ export default class Builds extends Cloudflare.DurableObjectNamespace<Builds>()(
               );
             const finalState: BuildState = {
               status: result.exitCode === 0 ? "success" : "failure",
-              startedAt: Date.now(),
+              kind: "build",
+              repo: input.repo,
+              ref: input.ref,
+              sha: input.sha,
+              startedAt,
               completedAt: Date.now(),
               exitCode: result.exitCode,
               logTail: result.logTail,
@@ -68,22 +78,44 @@ export default class Builds extends Cloudflare.DurableObjectNamespace<Builds>()(
           }),
 
         runAgent: (input: {
-          artifactsRepo: string;
-          artifactsRemote: string;
-          artifactsToken: string;
+          repo: string;
           ref: string;
           prompt: string;
           pushBranch?: string;
+          token?: string;
         }) =>
-          builder.runAgent(input).pipe(
-            Effect.catch((e) =>
-              Effect.succeed({
-                exitCode: 1,
-                logTail: String(e),
-                pushedSha: null,
-              }),
-            ),
-          ),
+          Effect.gen(function* () {
+            const startedAt = Date.now();
+            yield* state.storage.put<BuildState>("state", {
+              status: "running",
+              kind: "agent",
+              repo: input.repo,
+              ref: input.ref,
+              startedAt,
+            });
+            const result = yield* builder.runAgent(input).pipe(
+              Effect.catch((e) =>
+                Effect.succeed({
+                  exitCode: 1,
+                  logTail: String(e),
+                  pushedSha: null,
+                }),
+              ),
+            );
+            const finalState: BuildState = {
+              status: result.exitCode === 0 ? "success" : "failure",
+              kind: "agent",
+              repo: input.repo,
+              ref: input.ref,
+              startedAt,
+              completedAt: Date.now(),
+              exitCode: result.exitCode,
+              logTail: result.logTail,
+              pushedSha: result.pushedSha,
+            };
+            yield* state.storage.put<BuildState>("state", finalState);
+            return finalState;
+          }),
       };
     });
   }),

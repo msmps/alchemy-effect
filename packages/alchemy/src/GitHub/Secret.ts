@@ -129,11 +129,6 @@ export interface Secret extends Resource<
  */
 export const Secret = Resource<Secret>("GitHub.Secret");
 
-const getOctokit = Effect.gen(function* () {
-  const creds = yield* GitHubCredentials;
-  return creds.octokit();
-});
-
 async function encryptValue(
   plaintext: string,
   publicKey: string,
@@ -151,37 +146,40 @@ async function encryptValue(
 }
 
 export const SecretProvider = () =>
-  Provider.succeed(Secret, {
-    reconcile: Effect.fn(function* ({ news, olds }) {
-      const octokit = yield* getOctokit;
+  Provider.effect(
+    Secret,
+    Effect.gen(function* () {
+      const octokit = (yield* GitHubCredentials).octokit();
+      return {
+        reconcile: Effect.fn(function* ({ news, olds }) {
+          // Observe — there's no API to read a secret's value back, so we can
+          // only observe its location (repo vs. environment, environment name).
+          // If the location changed, the previous secret is orphaned: delete
+          // it before upserting the new one, otherwise it stays in GitHub as
+          // dead state.
+          if (olds !== undefined) {
+            const wasEnv = !!olds.environment;
+            const isEnv = !!news.environment;
+            if (wasEnv !== isEnv || olds.environment !== news.environment) {
+              yield* deleteSecret(octokit, olds);
+            }
+          }
 
-      // Observe — there's no API to read a secret's value back, so we can
-      // only observe its location (repo vs. environment, environment name).
-      // If the location changed, the previous secret is orphaned: delete
-      // it before upserting the new one, otherwise it stays in GitHub as
-      // dead state.
-      if (olds !== undefined) {
-        const wasEnv = !!olds.environment;
-        const isEnv = !!news.environment;
-        if (wasEnv !== isEnv || olds.environment !== news.environment) {
+          // Ensure & Sync — `createOrUpdate*Secret` is upsert-style: it
+          // creates the secret if absent and overwrites it if present. The
+          // value is encrypted client-side with the repo/environment public
+          // key, so we re-encrypt and re-upload on every reconcile (Redacted
+          // values can't be diffed across runs anyway).
+          yield* upsertSecret(octokit, news);
+          return { updatedAt: new Date().toISOString() };
+        }),
+
+        delete: Effect.fn(function* ({ olds }) {
           yield* deleteSecret(octokit, olds);
-        }
-      }
-
-      // Ensure & Sync — `createOrUpdate*Secret` is upsert-style: it
-      // creates the secret if absent and overwrites it if present. The
-      // value is encrypted client-side with the repo/environment public
-      // key, so we re-encrypt and re-upload on every reconcile (Redacted
-      // values can't be diffed across runs anyway).
-      yield* upsertSecret(octokit, news);
-      return { updatedAt: new Date().toISOString() };
+        }),
+      };
     }),
-
-    delete: Effect.fn(function* ({ olds }) {
-      const octokit = yield* getOctokit;
-      yield* deleteSecret(octokit, olds);
-    }),
-  });
+  );
 
 const upsertSecret = Effect.fn(function* (
   octokit: Octokit,
