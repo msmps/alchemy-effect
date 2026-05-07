@@ -18,6 +18,12 @@ import type { Providers } from "../Providers.ts";
  * and the real reconcile hasn't replaced it yet, so we retry with
  * backoff. If the user genuinely forgot to export a queue handler we
  * eventually surface the failure after `recurs` is exhausted.
+ *
+ * TODO(distilled): once
+ * https://github.com/alchemy-run/distilled/pull/273 lands and we bump
+ * `@distilled.cloud/cloudflare`, both shapes will surface as a typed
+ * `QueueHandlerMissing` error; collapse the inline predicates below
+ * to a single `Effect.catchTag("QueueHandlerMissing", retry)`.
  */
 const QUEUE_HANDLER_MISSING_CODE = 11001;
 const QUEUE_HANDLER_MISSING_MESSAGE = /queue handler is missing/i;
