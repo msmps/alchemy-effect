@@ -5,11 +5,13 @@ import { pipe } from "effect/Function";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as Schedule from "effect/Schedule";
-import { Command } from "../Build/Command.ts";
-import * as Build from "../Build/index.ts";
-import * as Provider from "../Provider.ts";
 import { CredentialsStoreLive } from "../Auth/Credentials.ts";
 import { ProfileLive } from "../Auth/Profile.ts";
+import { Command } from "../Build/Command.ts";
+import * as Build from "../Build/index.ts";
+import { CreateCommentPolicy } from "../GitHub/CreateComment.ts";
+import { UpdateCommentPolicy } from "../GitHub/UpdateComment.ts";
+import * as Provider from "../Provider.ts";
 import { Random, RandomProvider } from "../Random.ts";
 import * as Access from "./Access.ts";
 import * as AiGateway from "./AiGateway/index.ts";
@@ -20,6 +22,7 @@ import * as CloudflareEnvironment from "./CloudflareEnvironment.ts";
 import * as Containers from "./Container/index.ts";
 import * as Credentials from "./Credentials.ts";
 import * as D1 from "./D1/index.ts";
+import * as GitHubBindings from "./GitHub/index.ts";
 import * as Hyperdrive from "./Hyperdrive/index.ts";
 import * as KV from "./KV/index.ts";
 import * as Queue from "./Queue/index.ts";
@@ -52,6 +55,8 @@ export const providers = () =>
       Artifacts.ArtifactsBindingPolicy,
       Command,
       Containers.Container,
+      CreateCommentPolicy,
+      UpdateCommentPolicy,
       D1.D1ConnectionPolicy,
       D1.D1Database,
       Hyperdrive.Hyperdrive,
@@ -84,6 +89,8 @@ export const providers = () =>
         AiGateway.AiGatewayBindingPolicyLive,
         Artifacts.ArtifactsBindingPolicyLive,
         Containers.ContainerProvider(),
+        GitHubBindings.CreateCommentPolicyLive,
+        GitHubBindings.UpdateCommentPolicyLive,
         D1.D1ConnectionPolicyLive,
         D1.DatabaseProvider(),
         Hyperdrive.HyperdriveBindingPolicyLive,
