@@ -55,6 +55,9 @@
       "path": "./examples/aws-vite/tsconfig.json"
     },
     {
+      "path": "./examples/cloudflare-chat-bot/tsconfig.json"
+    },
+    {
       "path": "./examples/cloudflare-static-site/tsconfig.json"
     },
     {

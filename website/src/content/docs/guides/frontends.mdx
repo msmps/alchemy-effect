@@ -22,9 +22,7 @@ content-hashed so unchanged projects skip the build entirely.
 ```typescript
 import * as Cloudflare from "alchemy/Cloudflare";
 
-export const App = Cloudflare.Vite("App", {
-  compatibility: { flags: ["nodejs_compat"] },
-});
+export const App = Cloudflare.Vite("App");
 ```
 
 **Astro**
@@ -44,11 +42,15 @@ import * as Cloudflare from "alchemy/Cloudflare";
 export const App = Cloudflare.Vite("App");
 ```
 
-- **SSR with `nodejs_compat`** — For frameworks that need Node APIs
-  at runtime (TanStack Start, SolidStart, Nuxt), enable
-  `nodejs_compat` in one line.
-- **Static — also one line** — Pure SPA or static site? Drop the
-  `compatibility` option. The Worker just serves the built assets.
+- **`nodejs_compat` is on by default** — Every `Cloudflare.Vite`
+  (and `Cloudflare.Worker`) ships with `nodejs_compat` enabled, so
+  SSR frameworks like TanStack Start, SolidStart, and Nuxt that
+  reach for Node APIs at runtime just work — no extra option to
+  set.
+- **SPA with client-side routing** — For pure SPAs that handle
+  routing on the client, set `assets.config.notFoundHandling:
+  "single-page-application"` so unknown paths fall back to
+  `index.html` instead of 404ing.
 - **Content-hashed builds** — Every input file is hashed (respecting
   `.gitignore` by default). Unchanged projects skip both build and
   deploy.

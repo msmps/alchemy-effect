@@ -1,0 +1,30 @@
+{
+  "name": "cloudflare-chat-bot",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alchemy-run/alchemy-effect.git",
+    "directory": "examples/cloudflare-chat-bot"
+  },
+  "type": "module",
+  "scripts": {
+    "deploy": "alchemy deploy",
+    "dev": "alchemy dev",
+    "destroy": "alchemy destroy",
+    "logs": "alchemy logs",
+    "tail": "alchemy tail"
+  },
+  "dependencies": {
+    "alchemy": "workspace:*",
+    "effect": "catalog:",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "vite": "catalog:"
+  }
+}

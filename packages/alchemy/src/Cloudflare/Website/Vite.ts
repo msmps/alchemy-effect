@@ -50,24 +50,18 @@ export interface ViteProps<
  * ```
  *
  * @section SSR Frameworks
- * For SSR frameworks like TanStack Start, SolidStart, or Nuxt, enable
- * `nodejs_compat` so the server bundle can use Node.js APIs.
+ * For SSR frameworks like TanStack Start, SolidStart, or Nuxt,
+ * `nodejs_compat` is already enabled by default — no extra option
+ * required.
  *
  * @example TanStack Start
  * ```typescript
- * const app = yield* Cloudflare.Vite("TanStackStart", {
- *   compatibility: {
- *     flags: ["nodejs_compat"],
- *   },
- * });
+ * const app = yield* Cloudflare.Vite("TanStackStart");
  * ```
  *
  * @example SolidStart with worker-first routing
  * ```typescript
  * const app = yield* Cloudflare.Vite("SolidStart", {
- *   compatibility: {
- *     flags: ["nodejs_compat"],
- *   },
  *   assets: {
  *     config: { runWorkerFirst: true },
  *   },
@@ -81,9 +75,6 @@ export interface ViteProps<
  * @example Vue SPA
  * ```typescript
  * const app = yield* Cloudflare.Vite("Vue", {
- *   compatibility: {
- *     flags: ["nodejs_compat"],
- *   },
  *   assets: {
  *     config: {
  *       htmlHandling: "auto-trailing-slash",
