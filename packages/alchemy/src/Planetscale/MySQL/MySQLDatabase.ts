@@ -268,7 +268,7 @@ export const MySQLDatabaseProvider = () =>
           );
         }),
 
-        reconcile: Effect.fn(function* ({ id, news, output }) {
+        reconcile: Effect.fn(function* ({ id, news, output, session }) {
           const { organization } = yield* Credentials;
           const newName = yield* createDatabaseName(id, news.name);
           const clusterSize = news.clusterSize;
@@ -290,6 +290,7 @@ export const MySQLDatabaseProvider = () =>
 
           // Ensure — if missing, create.
           if (!observed) {
+            yield* session.note(`Creating database "${newName}"...`);
             observed = yield* createDb({
               organization,
               name: newName,
@@ -305,7 +306,7 @@ export const MySQLDatabaseProvider = () =>
           // for a while after createDatabase returns, during which branch
           // operations on this database (including our own settings PATCH)
           // race against the provisioning fiber.
-          yield* waitForDatabaseReady(organization, observed.name);
+          yield* waitForDatabaseReady(organization, observed.name, session);
 
           if (observed.kind !== "mysql") {
             return yield* Effect.fail(
@@ -322,7 +323,7 @@ export const MySQLDatabaseProvider = () =>
           // referencing it via `default_branch`. The branch is created
           // empty (no cluster size yet); we'll size it below.
           if (news.defaultBranch && news.defaultBranch !== "main") {
-            yield* waitForDatabaseReady(organization, observed.name);
+            yield* waitForDatabaseReady(organization, observed.name, session);
             const branchExists = yield* getBr({
               organization,
               database: observed.name,
@@ -376,7 +377,12 @@ export const MySQLDatabaseProvider = () =>
             branch,
           };
           if (news.migrationsDir || news.importFiles?.length) {
-            yield* waitForBranchReady(organization, updated.name, branch);
+            yield* waitForBranchReady(
+              organization,
+              updated.name,
+              branch,
+              session,
+            );
           }
           const migrationsTable =
             news.migrationsTable ??

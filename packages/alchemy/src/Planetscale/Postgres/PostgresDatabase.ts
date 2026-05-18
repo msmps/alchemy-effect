@@ -232,7 +232,7 @@ export const PostgresDatabaseProvider = () =>
           };
         }),
 
-        reconcile: Effect.fn(function* ({ id, news, output }) {
+        reconcile: Effect.fn(function* ({ id, news, output, session }) {
           const { organization } = yield* Credentials;
           const newName = yield* createDatabaseName(id, news.name);
           const clusterSize = toPostgresClusterSku({
@@ -258,6 +258,7 @@ export const PostgresDatabaseProvider = () =>
 
           // Ensure — if missing, create.
           if (!observed) {
+            yield* session.note(`Creating database "${newName}"...`);
             observed = yield* createDb({
               organization,
               name: newName,
@@ -274,7 +275,7 @@ export const PostgresDatabaseProvider = () =>
           // for a while after createDatabase returns, during which branch
           // operations on this database (including our own settings PATCH)
           // race against the provisioning fiber.
-          yield* waitForDatabaseReady(organization, observed.name);
+          yield* waitForDatabaseReady(organization, observed.name, session);
 
           if (observed.kind !== "postgresql") {
             return yield* Effect.fail(
@@ -291,7 +292,7 @@ export const PostgresDatabaseProvider = () =>
           // referencing it via `default_branch`. The branch is created
           // empty (no cluster size yet); we'll size it below.
           if (news.defaultBranch && news.defaultBranch !== "main") {
-            yield* waitForDatabaseReady(organization, observed.name);
+            yield* waitForDatabaseReady(organization, observed.name, session);
             const branchExists = yield* getBr({
               organization,
               database: observed.name,
@@ -339,7 +340,12 @@ export const PostgresDatabaseProvider = () =>
             branch,
           };
           if (news.migrationsDir || news.importFiles?.length) {
-            yield* waitForBranchReady(organization, updated.name, branch);
+            yield* waitForBranchReady(
+              organization,
+              updated.name,
+              branch,
+              session,
+            );
           }
           const migrationsTable =
             news.migrationsTable ??

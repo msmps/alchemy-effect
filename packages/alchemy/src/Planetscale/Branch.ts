@@ -285,7 +285,7 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
           );
         }),
 
-        reconcile: Effect.fn(function* ({ id, news, output }: any) {
+        reconcile: Effect.fn(function* ({ id, news, output, session }: any) {
           const { organization: envOrg } = yield* Credentials;
           const dbInfo = resolveDatabase(news.database);
           const organization =
@@ -304,6 +304,7 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
               organization,
               databaseName,
               parentBranchName,
+              session,
             );
           }
 
@@ -323,6 +324,7 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
               organization,
               databaseName,
               parentBranchName,
+              session,
             );
             const parentClusterSize = news.clusterSize
               ? parent.kind === "postgresql"
@@ -332,6 +334,7 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
                   })
                 : news.clusterSize
               : undefined;
+            yield* session.note(`Creating branch "${desiredBranchName}"...`);
             current = yield* createBranch({
               organization,
               database: databaseName,
@@ -356,7 +359,12 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
             );
           }
 
-          yield* waitForBranchReady(organization, databaseName, current.name);
+          yield* waitForBranchReady(
+            organization,
+            databaseName,
+            current.name,
+            session,
+          );
 
           // Sync name — branch names are mutable. Continue subsequent syncs
           // under the name returned by the API.
@@ -476,7 +484,11 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
           } satisfies BaseBranchAttributes;
         }),
 
-        delete: Effect.fn(function* ({ output }) {
+        delete: Effect.fn(function* ({ output }: any) {
+          // If `read` returned undefined (e.g. destroy of a partially-
+          // created branch whose props never finished persisting), there
+          // is nothing addressable to delete. Drop the state entry.
+          if (!output) return;
           yield* deleteBranch({
             organization: output.organization,
             database: output.database,

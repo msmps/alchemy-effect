@@ -1,7 +1,17 @@
 import * as ops from "@distilled.cloud/planetscale/Operations";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Ref from "effect/Ref";
 import * as Schedule from "effect/Schedule";
+
+/**
+ * Subset of {@link ScopedPlanStatusSession} used by the polling helpers.
+ * Typed structurally so callers can pass the full session without
+ * pulling the CLI types into this provider module.
+ */
+export interface Noter {
+  note: (message: string) => Effect.Effect<void>;
+}
 
 export const DEFAULT_MIGRATIONS_TABLE = "__alchemy_migrations";
 
@@ -63,23 +73,36 @@ export const pollUntil = <A, E, R>(
  * Polls a branch via `getBranch` until it reports `ready === true`. Returns
  * the final branch shape. `NotFound` during polling is treated as
  * not-yet-ready (the branch is being provisioned by an upstream operation).
+ *
+ * If a `session` is supplied, each poll emits a "Waiting for branch ... (N)"
+ * note so the CLI surfaces progress while we sit in the spaced retry loop.
  */
 export const waitForBranchReady = Effect.fn(function* (
   organization: string,
   database: string,
   branch: string,
+  session?: Noter,
 ) {
+  const attempts = yield* Ref.make(0);
   return yield* pollUntil(
     `branch "${branch}" ready`,
-    ops
-      .getBranch({ organization, database, branch })
-      .pipe(
-        Effect.catchTag("NotFound", () =>
-          Effect.fail(
-            new NotReady({ description: `branch "${branch}" not found yet` }),
-          ),
+    Effect.gen(function* () {
+      if (session) {
+        const n = yield* Ref.updateAndGet(attempts, (i) => i + 1);
+        yield* session.note(
+          n === 1
+            ? `Waiting for branch "${branch}" to be ready...`
+            : `Waiting for branch "${branch}" to be ready... (${n})`,
+        );
+      }
+      return yield* ops.getBranch({ organization, database, branch });
+    }).pipe(
+      Effect.catchTag("NotFound", () =>
+        Effect.fail(
+          new NotReady({ description: `branch "${branch}" not found yet` }),
         ),
       ),
+    ),
     (data) => data.ready,
   );
 });
@@ -88,24 +111,37 @@ export const waitForBranchReady = Effect.fn(function* (
  * Polls a database via `getDatabase` until it reports `ready === true`.
  * `NotFound` during polling is treated as not-yet-ready (the database is
  * being provisioned by an upstream operation).
+ *
+ * If a `session` is supplied, each poll emits a "Waiting for database ... (N)"
+ * note so the CLI surfaces progress while we sit in the spaced retry loop.
  */
 export const waitForDatabaseReady = Effect.fn(function* (
   organization: string,
   database: string,
+  session?: Noter,
 ) {
+  const attempts = yield* Ref.make(0);
   return yield* pollUntil(
     `database "${database}" ready`,
-    ops
-      .getDatabase({ organization, database })
-      .pipe(
-        Effect.catchTag("NotFound", () =>
-          Effect.fail(
-            new NotReady({
-              description: `database "${database}" not found yet`,
-            }),
-          ),
+    Effect.gen(function* () {
+      if (session) {
+        const n = yield* Ref.updateAndGet(attempts, (i) => i + 1);
+        yield* session.note(
+          n === 1
+            ? `Waiting for database "${database}" to be ready...`
+            : `Waiting for database "${database}" to be ready... (${n})`,
+        );
+      }
+      return yield* ops.getDatabase({ organization, database });
+    }).pipe(
+      Effect.catchTag("NotFound", () =>
+        Effect.fail(
+          new NotReady({
+            description: `database "${database}" not found yet`,
+          }),
         ),
       ),
+    ),
     (data) => data.ready,
   );
 });
