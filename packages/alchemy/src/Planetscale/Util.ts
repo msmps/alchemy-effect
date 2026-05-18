@@ -27,11 +27,12 @@ export class PlanetscaleConflict extends Data.TaggedError(
 }> {}
 
 /**
- * Default polling schedule: exponential backoff starting at 200ms, capped
- * at ~3 minutes total via `Schedule.recurs(60)`.
+ * Default polling schedule: 5s spaced retries with a 10-minute total
+ * budget (120 × 5s). Avoids the exponential-blowup trap where later
+ * iterations would wait hours, indistinguishable from a hang.
  */
-const defaultSchedule = Schedule.exponential("200 millis").pipe(
-  Schedule.both(Schedule.recurs(60)),
+const defaultSchedule = Schedule.spaced("5 seconds").pipe(
+  Schedule.both(Schedule.recurs(120)),
 );
 
 /**
@@ -60,7 +61,8 @@ export const pollUntil = <A, E, R>(
 
 /**
  * Polls a branch via `getBranch` until it reports `ready === true`. Returns
- * the final branch shape.
+ * the final branch shape. `NotFound` during polling is treated as
+ * not-yet-ready (the branch is being provisioned by an upstream operation).
  */
 export const waitForBranchReady = Effect.fn(function* (
   organization: string,
@@ -69,13 +71,23 @@ export const waitForBranchReady = Effect.fn(function* (
 ) {
   return yield* pollUntil(
     `branch "${branch}" ready`,
-    ops.getBranch({ organization, database, branch }),
+    ops
+      .getBranch({ organization, database, branch })
+      .pipe(
+        Effect.catchTag("NotFound", () =>
+          Effect.fail(
+            new NotReady({ description: `branch "${branch}" not found yet` }),
+          ),
+        ),
+      ),
     (data) => data.ready,
   );
 });
 
 /**
  * Polls a database via `getDatabase` until it reports `ready === true`.
+ * `NotFound` during polling is treated as not-yet-ready (the database is
+ * being provisioned by an upstream operation).
  */
 export const waitForDatabaseReady = Effect.fn(function* (
   organization: string,
@@ -83,7 +95,17 @@ export const waitForDatabaseReady = Effect.fn(function* (
 ) {
   return yield* pollUntil(
     `database "${database}" ready`,
-    ops.getDatabase({ organization, database }),
+    ops
+      .getDatabase({ organization, database })
+      .pipe(
+        Effect.catchTag("NotFound", () =>
+          Effect.fail(
+            new NotReady({
+              description: `database "${database}" not found yet`,
+            }),
+          ),
+        ),
+      ),
     (data) => data.ready,
   );
 });

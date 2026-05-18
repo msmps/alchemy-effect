@@ -269,6 +269,13 @@ export const PostgresDatabaseProvider = () =>
             });
           }
 
+          // Wait for the database to finish provisioning before any
+          // downstream sync runs. PlanetScale reports `state: "pending"`
+          // for a while after createDatabase returns, during which branch
+          // operations on this database (including our own settings PATCH)
+          // race against the provisioning fiber.
+          yield* waitForDatabaseReady(organization, observed.name);
+
           if (observed.kind !== "postgresql") {
             return yield* Effect.fail(
               new PlanetscaleConflict({

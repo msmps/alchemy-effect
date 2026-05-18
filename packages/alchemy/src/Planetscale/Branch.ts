@@ -121,7 +121,8 @@ type BranchRef = string | { name: string };
 const resolveDatabase = (
   database: unknown,
 ): { name: string; organization?: string } => {
-  const ref = database as DatabaseRef;
+  const ref = database as DatabaseRef | undefined;
+  if (!ref) return { name: "" };
   return typeof ref === "string"
     ? { name: ref }
     : { name: ref.name, organization: ref.organization };
@@ -237,6 +238,14 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
         }),
 
         read: Effect.fn(function* ({ id, olds, output }: any) {
+          // If we have neither a cached output nor a usable `olds.database`
+          // there's no way to identify which branch to refresh — most often
+          // this is destroy of a partially-created resource whose props
+          // never got fully persisted. Return `undefined` so the engine
+          // treats it as already-gone and drops the state entry.
+          if (!output && !olds?.database) {
+            return undefined;
+          }
           const dbInfo = output
             ? { name: output.database, organization: output.organization }
             : resolveDatabase(olds.database);

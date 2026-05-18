@@ -9,7 +9,7 @@ import Api from "./src/Api.ts";
 import { Hyperdrive, PlanetscaleDb } from "./src/Db.ts";
 
 export default Alchemy.Stack(
-  "CloudflarePlanetscaleDrizzleExample",
+  "CloudflarePlanetscalePostgresDrizzleExample",
   {
     providers: Layer.mergeAll(
       Cloudflare.providers(),
