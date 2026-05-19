@@ -50,7 +50,6 @@ export interface PostgresBranchAttributes extends BaseBranchAttributes {}
  * const branch = yield* Planetscale.PostgresBranch("Feature123", {
  *   database: "my-db",
  *   parentBranch: "main",
- *   isProduction: false,
  * });
  * ```
  *
@@ -60,7 +59,6 @@ export interface PostgresBranchAttributes extends BaseBranchAttributes {}
  * const branch = yield* Planetscale.PostgresBranch("Feature456", {
  *   database: db,
  *   parentBranch: "main",
- *   isProduction: false,
  * });
  * ```
  *
@@ -70,7 +68,6 @@ export interface PostgresBranchAttributes extends BaseBranchAttributes {}
  * const branch = yield* Planetscale.PostgresBranch("Feature123", {
  *   database: db,
  *   parentBranch: "main",
- *   isProduction: false,
  *   migrationsDir: "./migrations",
  *   importFiles: ["./seed.sql"],
  * });

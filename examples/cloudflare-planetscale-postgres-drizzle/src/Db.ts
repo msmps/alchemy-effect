@@ -41,7 +41,6 @@ export const PlanetscaleDb = Effect.gen(function* () {
 
   const branch = yield* Planetscale.PostgresBranch("app-branch", {
     database,
-    isProduction: false,
     migrationsDir: schema.out,
   });
 

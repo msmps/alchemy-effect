@@ -18,7 +18,6 @@ export const PlanetscaleDb = Effect.gen(function* () {
 
   const branch = yield* Planetscale.PostgresBranch("HyperdriveTestBranch", {
     database,
-    isProduction: false,
     migrationsDir:
       "./packages/alchemy/test/Planetscale/Postgres/fixtures/migrations",
   });

@@ -389,7 +389,6 @@ test.provider(
 
           const branch = yield* Planetscale.PostgresBranch("CustomBranch", {
             database,
-            isProduction: false,
           });
 
           const role = yield* Planetscale.PostgresRole("RoleCustomBranch", {

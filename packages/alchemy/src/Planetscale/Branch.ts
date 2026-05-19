@@ -31,11 +31,6 @@ export interface BaseBranchProps {
   name?: string;
 
   /**
-   * Whether the branch should be a production branch.
-   */
-  isProduction: boolean;
-
-  /**
    * If provided, restores the backup's schema and data to the new branch.
    * Ignored if the branch already exists.
    */
@@ -380,18 +375,22 @@ export const makeBranchProvider = <R extends ResourceLike>(opts: {
           const branchName = current.name;
 
           // Sync production status before branch settings that depend on it.
-          if (current.production !== news.isProduction) {
-            current = news.isProduction
-              ? yield* promoteBranch({
-                  organization,
-                  database: databaseName,
-                  branch: branchName,
-                })
-              : yield* demoteBranch({
-                  organization,
-                  database: databaseName,
-                  branch: branchName,
-                });
+          // PlanetScale only supports explicit branch promotion/demotion for MySQL.
+          if (opts.expectedKind === "mysql") {
+            const desiredProduction = news.isProduction ?? false;
+            if (current.production !== desiredProduction) {
+              current = desiredProduction
+                ? yield* promoteBranch({
+                    organization,
+                    database: databaseName,
+                    branch: branchName,
+                  })
+                : yield* demoteBranch({
+                    organization,
+                    database: databaseName,
+                    branch: branchName,
+                  });
+            }
           }
 
           // Sync safeMigrations — observed via `current.safe_migrations`,

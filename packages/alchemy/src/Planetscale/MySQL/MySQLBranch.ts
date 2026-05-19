@@ -14,6 +14,11 @@ import type { MySQLDatabase } from "./MySQLDatabase.ts";
  */
 export interface MySQLBranchProps extends BaseBranchProps {
   /**
+   * Whether the branch should be a production branch.
+   */
+  isProduction: boolean;
+
+  /**
    * The MySQL database. Either a string database name or a
    * {@link MySQLDatabase} resource.
    */
