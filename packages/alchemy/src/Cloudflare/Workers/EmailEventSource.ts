@@ -99,7 +99,7 @@ const formatCause = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
 /**
- * Settings for {@link Email} — both halves of the consumer in one
+ * Settings for {@link email} — both halves of the consumer in one
  * place. `zone` opts in to the deploy-time setup: an `EmailRouting`
  * toggle on the zone plus an `EmailRule` whose action routes matched
  * mail to the host Worker. Omit `zone` to manage routing yourself.
@@ -165,7 +165,7 @@ export interface EmailSubscribeProps {
  *   "Inbox",
  *   { main: import.meta.path },
  *   Effect.gen(function* () {
- *     yield* Cloudflare.Email({ zone: "example.com" }).subscribe(
+ *     yield* Cloudflare.email({ zone: "example.com" }).subscribe(
  *       (message) => message.forward("ops@example.com"),
  *     );
  *     return {};
@@ -175,7 +175,7 @@ export interface EmailSubscribeProps {
  *
  * @example Match a specific address
  * ```typescript
- * yield* Cloudflare.Email({
+ * yield* Cloudflare.email({
  *   zone: "example.com",
  *   matchers: [{ type: "literal", field: "to", value: "hello@example.com" }],
  * }).subscribe((message) => message.forward("ops@example.com"));
@@ -183,7 +183,7 @@ export interface EmailSubscribeProps {
  *
  * @example Reject (bounce) a message
  * ```typescript
- * yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
+ * yield* Cloudflare.email({ zone: "example.com" }).subscribe((message) =>
  *   message.setReject("Mailbox closed"),
  * );
  * ```
@@ -191,14 +191,14 @@ export interface EmailSubscribeProps {
  * @example Bring-your-own routing — no `zone`, no auto-create
  * ```typescript
  * // Manage `EmailRouting` / `EmailRule` yourself in alchemy.run.ts.
- * yield* Cloudflare.Email().subscribe((message) =>
+ * yield* Cloudflare.email().subscribe((message) =>
  *   Effect.log(`from ${message.from}`),
  * );
  * ```
  *
  * @see https://developers.cloudflare.com/email-routing/email-workers/
  */
-export const Email = (props: EmailSubscribeProps = {}) => ({
+export const email = (props: EmailSubscribeProps = {}) => ({
   subscribe: <E = never, Req = never>(
     process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
   ) => EmailEventSource.use((source) => source(props, process)),
@@ -235,7 +235,7 @@ export const EmailEventSourcePolicyLive = EmailEventSourcePolicy.layer.succeed(
     Effect.gen(function* () {
       if (!isWorker(host)) {
         return yield* Effect.die(
-          `Cloudflare.Email(...).subscribe(...) is only supported on ` +
+          `Cloudflare.email(...).subscribe(...) is only supported on ` +
             `Cloudflare.Worker hosts (got '${host.Type}').`,
         );
       }

@@ -1,11 +1,11 @@
 ---
 title: Handle Inbound Email
-description: Receive inbound mail in a Cloudflare Worker with Cloudflare.Email({ zone }).subscribe(...) — auto-creates routing and forwarding rules.
+description: Receive inbound mail in a Cloudflare Worker with Cloudflare.email({ zone }).subscribe(...) — auto-creates routing and forwarding rules.
 sidebar:
   order: 11
 ---
 
-`Cloudflare.Email({ zone }).subscribe(handler)` is the
+`Cloudflare.email({ zone }).subscribe(handler)` is the
 Effect-native API for Cloudflare Email Workers. One call wires
 both halves of the consumer:
 
@@ -33,7 +33,7 @@ export default Cloudflare.Worker(
   "Inbox",
   { main: import.meta.path },
   Effect.gen(function* () {
-    yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
+    yield* Cloudflare.email({ zone: "example.com" }).subscribe((message) =>
       message.forward("ops@example.com"),
     );
     return {};
@@ -53,7 +53,7 @@ the Worker's runtime dispatch.
 
 ```diff lang="typescript"
   Effect.gen(function* () {
-    yield* Cloudflare.Email({ zone: "example.com" }).subscribe(...);
+    yield* Cloudflare.email({ zone: "example.com" }).subscribe(...);
     return {};
   }).pipe(
 +   Effect.provide(Cloudflare.EmailEventSourceLive),
@@ -75,7 +75,7 @@ const ops = yield* Cloudflare.EmailAddress("Ops", {
   email: "ops@example.com",
 });
 
-yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
+yield* Cloudflare.email({ zone: "example.com" }).subscribe((message) =>
   message.forward(ops.email),
 );
 ```
@@ -90,7 +90,7 @@ never fails.
 sender. Use it for closed mailboxes or anti-abuse checks.
 
 ```typescript
-yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
+yield* Cloudflare.email({ zone: "example.com" }).subscribe((message) =>
   message.headers.get("x-spam-score") === "high"
     ? message.setReject("Rejected: spam")
     : message.forward("ops@example.com"),
@@ -99,11 +99,11 @@ yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
 
 ## Match a specific address
 
-By default `Email({ zone })` installs a catch-all rule. Pass
+By default `email({ zone })` installs a catch-all rule. Pass
 `matchers` to scope the rule to specific recipients:
 
 ```typescript
-yield* Cloudflare.Email({
+yield* Cloudflare.email({
   zone: "example.com",
   matchers: [{ type: "literal", field: "to", value: "hello@example.com" }],
 }).subscribe((message) => message.forward("ops@example.com"));
@@ -116,7 +116,7 @@ underlying `cf.ForwardableEmailMessage`. Useful for fields not yet
 surfaced on the wrapper, or for SDKs that want the native type.
 
 ```typescript
-yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
+yield* Cloudflare.email({ zone: "example.com" }).subscribe((message) =>
   Effect.log(`raw size: ${message.raw.rawSize}`),
 );
 ```
@@ -125,10 +125,10 @@ yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
 
 If you're already managing `EmailRouting` / `EmailRule` resources
 in `alchemy.run.ts` and just want the runtime listener, call
-`Email()` with no `zone` — the deploy-time policy becomes a no-op.
+`email()` with no `zone` — the deploy-time policy becomes a no-op.
 
 ```typescript
-yield* Cloudflare.Email().subscribe((message) =>
+yield* Cloudflare.email().subscribe((message) =>
   Effect.log(`from ${message.from}`),
 );
 ```
@@ -147,7 +147,7 @@ export default {
 };
 ```
 
-`Cloudflare.Email({ zone }).subscribe(...)` is the same primitive
+`Cloudflare.email({ zone }).subscribe(...)` is the same primitive
 on the Effect side — the Worker bundle's runtime dispatch routes
 the `email` event to the registered listener — but you also get
 `Effect.gen` composition, typed errors, the auto-created
