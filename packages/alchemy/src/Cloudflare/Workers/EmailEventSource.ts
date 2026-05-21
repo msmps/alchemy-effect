@@ -3,9 +3,14 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Binding from "../../Binding.ts";
+import type { ResourceLike } from "../../Resource.ts";
 import { RuntimeContext } from "../../RuntimeContext.ts";
 import type { FunctionContext } from "../../Serverless/Function.ts";
-import { isWorkerEvent } from "./Worker.ts";
+import { EmailRouting } from "../Email/EmailRouting.ts";
+import { EmailRule, type EmailMatcher } from "../Email/EmailRule.ts";
+import type { ZoneReference } from "../Zone.ts";
+import { isWorker, isWorkerEvent } from "./Worker.ts";
 
 /**
  * Effect-native wrapper around Cloudflare's
@@ -94,22 +99,64 @@ const formatCause = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
 
 /**
+ * Settings for {@link Email} — both halves of the consumer in one
+ * place. `zone` opts in to the deploy-time setup: an `EmailRouting`
+ * toggle on the zone plus an `EmailRule` whose action routes matched
+ * mail to the host Worker. Omit `zone` to manage routing yourself.
+ */
+export interface EmailSubscribeProps {
+  /**
+   * Zone to enable email routing on and attach the routing rule to.
+   * Accepts a zone id, a zone name (`example.com`), or a
+   * `{ zoneId, name? }` object. Required to auto-create routing
+   * resources; omit if you're managing `EmailRouting` and `EmailRule`
+   * yourself.
+   */
+  zone?: ZoneReference;
+  /**
+   * Matchers for the auto-created `EmailRule`. Ignored when `zone` is
+   * omitted.
+   *
+   * @default [{ type: "all" }]
+   */
+  matchers?: EmailMatcher[];
+  /**
+   * Display name for the auto-created `EmailRule`.
+   *
+   * @default the host worker's logical id
+   */
+  ruleName?: string;
+  /**
+   * Priority of the auto-created `EmailRule`. Lower numbers run first.
+   *
+   * @default 0
+   */
+  priority?: number;
+  /**
+   * Whether the auto-created `EmailRule` is enabled.
+   *
+   * @default true
+   */
+  enabled?: boolean;
+}
+
+/**
  * Subscribe to Cloudflare Email Worker events with an Effect handler.
  *
- * Cloudflare routes inbound mail to your Worker when an
- * [`EmailRule`](/providers/cloudflare/emailrule) with an action of
- * type `"worker"` targets it. Exporting an `email` handler is
- * sufficient — no extra binding metadata is required on the Worker.
+ * Wires both halves of the consumer in one call:
  *
- * The handler runs once per message (no streaming or batching) and
- * receives a {@link ForwardableEmailMessage} whose action methods are
- * `Effect`-returning — `forward`, `reply`, and `setReject` are
- * composable with the rest of your effect program.
+ * - **Runtime**: registers an `email` event listener on the Worker.
+ *   The handler receives a {@link ForwardableEmailMessage} whose
+ *   action methods (`forward`, `reply`, `setReject`) return `Effect`s.
+ * - **Deploy-time** (when `zone` is set): yields a
+ *   `Cloudflare.EmailRouting` toggle on the zone plus a
+ *   `Cloudflare.EmailRule` whose `actions: [{ type: "worker", … }]`
+ *   targets this Worker. No manual wiring needed in `alchemy.run.ts`.
  *
  * @binding Cloudflare.Workers.EmailEventSource
  *
  * @section Subscribing to Inbound Mail
- * @example Log inbound mail
+ * @example Catch-all on a zone — auto-creates routing + rule
  * ```typescript
  * import * as Cloudflare from "alchemy/Cloudflare";
  * import * as Effect from "effect/Effect";
@@ -118,49 +165,47 @@ const formatCause = (cause: unknown): string =>
  *   "Inbox",
  *   { main: import.meta.path },
  *   Effect.gen(function* () {
- *     yield* Cloudflare.Email.subscribe((message) =>
- *       Effect.log(`from ${message.from} to ${message.to}`),
+ *     yield* Cloudflare.Email({ zone: "example.com" }).subscribe(
+ *       (message) => message.forward("ops@example.com"),
  *     );
  *     return {};
  *   }).pipe(Effect.provide(Cloudflare.EmailEventSourceLive)),
  * );
  * ```
  *
- * @example Forward to a verified destination
+ * @example Match a specific address
  * ```typescript
- * yield* Cloudflare.Email.subscribe((message) =>
- *   message.forward("ops@example.com"),
- * );
+ * yield* Cloudflare.Email({
+ *   zone: "example.com",
+ *   matchers: [{ type: "literal", field: "to", value: "hello@example.com" }],
+ * }).subscribe((message) => message.forward("ops@example.com"));
  * ```
  *
  * @example Reject (bounce) a message
  * ```typescript
- * yield* Cloudflare.Email.subscribe((message) =>
+ * yield* Cloudflare.Email({ zone: "example.com" }).subscribe((message) =>
  *   message.setReject("Mailbox closed"),
  * );
  * ```
  *
- * @section Routing Mail to the Worker
- * @example Send all mail on a zone to the Worker
+ * @example Bring-your-own routing — no `zone`, no auto-create
  * ```typescript
- * yield* Cloudflare.EmailRouting({ zone: "example.com", enabled: true });
- *
- * yield* Cloudflare.EmailRule("CatchAll", {
- *   zone: "example.com",
- *   matchers: [{ type: "all" }],
- *   actions: [{ type: "worker", value: [worker.name] }],
- * });
+ * // Manage `EmailRouting` / `EmailRule` yourself in alchemy.run.ts.
+ * yield* Cloudflare.Email().subscribe((message) =>
+ *   Effect.log(`from ${message.from}`),
+ * );
  * ```
  *
  * @see https://developers.cloudflare.com/email-routing/email-workers/
  */
-export const Email = {
+export const Email = (props: EmailSubscribeProps = {}) => ({
   subscribe: <E = never, Req = never>(
     process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
-  ) => EmailEventSource.use((source) => source(process)),
-};
+  ) => EmailEventSource.use((source) => source(props, process)),
+});
 
 export type EmailEventSourceService = <E = never, Req = never>(
+  props: EmailSubscribeProps,
   process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
 ) => Effect.Effect<void, never, never>;
 
@@ -169,14 +214,66 @@ export class EmailEventSource extends Context.Service<
   EmailEventSourceService
 >()("Cloudflare.Workers.EmailEventSource") {}
 
+/**
+ * Deploy-time policy that yields `Cloudflare.EmailRouting` and
+ * `Cloudflare.EmailRule` resources pointing the configured zone at
+ * the host Worker. Provided in `Cloudflare.providers()` and consumed
+ * by {@link EmailEventSourceLive} via `yield* EmailEventSourcePolicy(...)`.
+ * At runtime the policy is absent, so the call is a no-op.
+ */
+export class EmailEventSourcePolicy extends Binding.Policy<
+  EmailEventSourcePolicy,
+  (props: EmailSubscribeProps) => Effect.Effect<void>
+>()("Cloudflare.Workers.EmailEventSource") {}
+
+export const EmailEventSourcePolicyLive = EmailEventSourcePolicy.layer.succeed(
+  // See `QueueEventSourcePolicyLive` for the rationale on the cast:
+  // yielding sibling Resources requires the Cloudflare `Providers`
+  // services, which the deploy-time stack provides; `layer.succeed`
+  // types the body too narrowly for that.
+  ((host: ResourceLike, props: EmailSubscribeProps) =>
+    Effect.gen(function* () {
+      if (!isWorker(host)) {
+        return yield* Effect.die(
+          `Cloudflare.Email(...).subscribe(...) is only supported on ` +
+            `Cloudflare.Worker hosts (got '${host.Type}').`,
+        );
+      }
+      // Bring-your-own routing: skip auto-create if zone is omitted.
+      if (!props.zone) return;
+
+      yield* EmailRouting(`${host.LogicalId}EmailRouting`, {
+        zone: props.zone,
+        enabled: true,
+      });
+      yield* EmailRule(`${host.LogicalId}EmailRule`, {
+        zone: props.zone,
+        name: props.ruleName ?? host.LogicalId,
+        enabled: props.enabled ?? true,
+        priority: props.priority ?? 0,
+        matchers: props.matchers ?? [{ type: "all" }],
+        actions: [{ type: "worker", value: [host.workerName] }],
+      });
+    })) as unknown as (
+    host: ResourceLike,
+    props: EmailSubscribeProps,
+  ) => Effect.Effect<void>,
+);
+
 export const EmailEventSourceLive = Layer.effect(
   EmailEventSource,
   Effect.gen(function* () {
+    const policy = yield* EmailEventSourcePolicy;
     return Effect.fn(function* <E, Req>(
+      props: EmailSubscribeProps,
       process: (
         message: ForwardableEmailMessage,
       ) => Effect.Effect<void, E, Req>,
     ) {
+      // Deploy-time: ensure EmailRouting + EmailRule exist. At runtime
+      // the policy resolves to a no-op variant via `Effect.serviceOption`.
+      yield* policy(props);
+
       const ctx = (yield* RuntimeContext) as unknown as FunctionContext;
       yield* ctx.listen<void, Req>((event) => {
         if (!isWorkerEvent(event) || event.type !== "email") return;
