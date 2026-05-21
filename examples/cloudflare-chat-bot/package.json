@@ -1,0 +1,34 @@
+{
+  "name": "cloudflare-chat-bot",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alchemy-run/alchemy-effect.git",
+    "directory": "examples/cloudflare-chat-bot"
+  },
+  "type": "module",
+  "scripts": {
+    "download:env": "doppler secrets download -c dev --project alchemy-v2 --no-file --format env > .env",
+    "deploy": "doppler run -c dev --project alchemy-v2 -- alchemy deploy",
+    "dev": "doppler run -c dev --project alchemy-v2 -- alchemy dev",
+    "destroy": "doppler run -c dev --project alchemy-v2 -- alchemy destroy",
+    "logs": "alchemy logs",
+    "tail": "alchemy tail",
+    "test": "doppler run -c dev --project alchemy-v2 -- bun test"
+  },
+  "dependencies": {
+    "@effect/ai-anthropic": "catalog:",
+    "@effect/ai-openai": "catalog:",
+    "alchemy": "workspace:*",
+    "effect": "catalog:",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "vite": "catalog:"
+  }
+}

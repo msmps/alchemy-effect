@@ -5,6 +5,7 @@ export {
   type ActionLike,
 } from "./Action.ts";
 export * as AdoptPolicy from "./AdoptPolicy.ts";
+export * as Agent from "./Agent/index.ts";
 export * from "./AlchemyContext.ts";
 export * from "./Apply.ts";
 export {

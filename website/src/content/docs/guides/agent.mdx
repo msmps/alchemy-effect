@@ -1,0 +1,190 @@
+---
+title: Build an Agent
+description: Patterns for building Agents — system prompts, tool kits, chat persistence, structured outputs, and swapping providers without touching call sites.
+sidebar:
+  order: 11
+---
+
+The [Agent concept](/concepts/agent) page covers what an Agent *is*.
+This guide is a catalog of the **patterns** you'll reach for when
+building one.
+
+If you want a step-by-step "deploy a chat agent to Cloudflare", see
+the [Add a Chat Agent tutorial](/tutorial/cloudflare/agent) — this
+guide assumes you already have an Agent and want to make it do more.
+
+## Skeleton
+
+The minimum agent: a name, a system prompt, a language model layer.
+
+```typescript
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import { Toolkit } from "effect/unstable/ai";
+
+export class AssistantAgent extends Alchemy.Agent.Agent("AssistantAgent")(
+  Effect.gen(function* () {
+    const aiGateway = yield* Cloudflare.AiGateway.bind(Gateway);
+    const languageModel = aiGateway.model({
+      client: aiGateway,
+      model: "@cf/meta/llama-3.1-8b-instruct",
+      parameters: { temperature: 0.7, maxTokens: 1024 },
+    });
+    return {
+      prompt: "You are a concise assistant.",
+      toolkit: Toolkit.make(),
+      languageModel,
+    };
+  }),
+) {}
+```
+
+`yield* AssistantAgent` inside any Worker / DO that has the binding
+gives you back an `AgentInstance` with `generateText` / `streamText`.
+
+## Adding tools
+
+Tools are typed functions the LLM can call. Each is a
+`Tool.make(name, { description, parameters, success })` plus a handler
+in `Toolkit.toLayer`:
+
+```typescript
+import * as Schema from "effect/Schema";
+import { Tool, Toolkit } from "effect/unstable/ai";
+
+const GetWeather = Tool.make("get_weather", {
+  description: "Get the current weather for a city.",
+  parameters: Schema.Struct({ city: Schema.String }),
+  success: Schema.Struct({
+    city: Schema.String,
+    temperatureC: Schema.Number,
+    condition: Schema.String,
+  }),
+});
+
+const WeatherToolkit = Toolkit.make(GetWeather);
+
+const WeatherToolkitLayer = WeatherToolkit.toLayer({
+  get_weather: ({ city }) =>
+    Effect.succeed({ city, temperatureC: 21, condition: "sunny" }),
+});
+```
+
+In the agent's init, return `toolkit: WeatherToolkit` and provide
+`WeatherToolkitLayer` to the `languageModel` layer (or to the call
+site).
+
+## Persisted chat
+
+Plain `generateText` is one-shot. For turn-by-turn memory, run the
+agent inside a Durable Object and provide a persistence layer:
+
+```typescript
+import { Chat, Persistence } from "effect/unstable/ai";
+
+export default class ChatAgent extends Cloudflare.DurableObjectNamespace<ChatAgent>()(
+  "ChatAgent",
+  Effect.gen(function* () {
+    return Effect.gen(function* () {
+      const persistence = yield* Persistence.layerResultPersisted({
+        storeId: "alchemy.chat",
+      }).pipe(Layer.provide(Cloudflare.DurableObjectChatPersistence));
+
+      return {
+        send: (threadId: string, prompt: string) =>
+          AssistantAgent.generateText({ prompt }).pipe(
+            Effect.provide(persistence),
+          ),
+      };
+    });
+  }),
+) {}
+```
+
+The DO instance is the conversation; `getByName(threadId)` selects a
+thread. See [Persist conversation state](/tutorial/cloudflare/durable-object-chat-persistence)
+for the persistence layer in detail.
+
+## Structured outputs
+
+Replace `generateText` with `generateObject` (Effect AI surface) and
+declare a `Schema` — the model is constrained to produce a value that
+parses through `Schema.decodeUnknown`:
+
+```typescript
+import { LanguageModel } from "effect/unstable/ai";
+
+const Plan = Schema.Struct({
+  steps: Schema.Array(Schema.String),
+  estimatedHours: Schema.Number,
+});
+
+const result = yield* LanguageModel.generateObject({
+  prompt: "Plan a weekend in Lisbon",
+  schema: Plan,
+}).pipe(Effect.provide(languageModel));
+```
+
+Wrap that pattern in a method on your Agent's returned object if it's
+a recurring shape.
+
+## Swapping providers
+
+The agent's call sites depend on `LanguageModel`, not on a specific
+provider. Switching from Workers AI to OpenAI / Anthropic is a
+one-file change in the init Effect:
+
+```diff lang="typescript"
+- const languageModel = aiGateway.model({
+-   client: aiGateway,
+-   model: "@cf/meta/llama-3.1-8b-instruct",
+- });
++ const apiKey = yield* Alchemy.Secret("ANTHROPIC_API_KEY");
++ const languageModel = AnthropicLanguageModel.layer({
++   model: "claude-3-5-sonnet-20240620",
++ }).pipe(
++   Layer.provide(AnthropicClient.layer({ apiKey })),
++   Layer.provide(FetchHttpClient.layer),
++ );
+```
+
+Every call site that does `yield* MyAgent.generateText(...)` keeps
+working unchanged. Routing through an AI Gateway as well is the same
+move with `aiGateway.getUrl()` as `apiUrl`. See the
+[Effect AI guide](/guides/effect-ai) for the full provider matrix.
+
+## Streaming responses
+
+`streamText` is the analog of `generateText` that returns a `Stream`
+of parts. From a Worker route, encode the parts as SSE:
+
+```typescript
+fetch: Effect.gen(function* () {
+  const ctx = yield* Effect.context<RuntimeContext>();
+  const encoder = new TextEncoder();
+  const body = AssistantAgent.streamText({ prompt }).pipe(
+    Stream.map((part) =>
+      encoder.encode(`data: ${JSON.stringify(part)}\n\n`),
+    ),
+    Stream.provideContext(ctx),
+  );
+  return HttpServerResponse.stream(body, {
+    headers: { "content-type": "text/event-stream" },
+  });
+}),
+```
+
+`Stream.provideContext(ctx)` carries `RuntimeContext` (and the bound
+language model) into the stream so it's `R = never` at the
+`HttpServerResponse.stream` boundary.
+
+## Where to go next
+
+- [Agent concept](/concepts/agent) — what an Agent is and where it
+  fits among Resources, Bindings, and Layers.
+- [Add a Chat Agent](/tutorial/cloudflare/agent) — end-to-end
+  walk-through with persistence and a UI.
+- [Effect AI](/guides/effect-ai) — how to wire any provider's
+  `LanguageModel` layer.
+- [Persist conversation state](/tutorial/cloudflare/durable-object-chat-persistence)
+  — DO-backed `BackingPersistence`.

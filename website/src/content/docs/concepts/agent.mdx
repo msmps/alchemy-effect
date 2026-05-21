@@ -1,0 +1,137 @@
+---
+title: Agent
+description: An Agent bundles a system prompt, a tool kit, and a language-model layer into a single yieldable Effect — the smallest reusable unit of "an LLM that does something".
+sidebar:
+  order: 16
+---
+
+An **Agent** is the smallest reusable unit of "an LLM that does
+something". It bundles three things that always travel together:
+
+1. a **system prompt** (who the LLM is and how it should behave),
+2. a **tool kit** (functions the LLM can call), and
+3. a **language-model layer** (which model, with which credentials,
+   talked to via which provider).
+
+Anywhere you'd otherwise pass a `Prompt`, a `Toolkit`, and an
+`Effect.provide(languageModel)` separately, you can `yield* MyAgent`
+and get back a typed `AgentInstance` whose `generateText` /
+`streamText` calls already have the prompt and tools baked in.
+
+## Where Agent fits
+
+Effect's `unstable/ai` module gives you:
+
+- **`LanguageModel`** — the provider-agnostic `generateText` /
+  `streamText` API.
+- **`Toolkit`** — typed tool definitions and their handlers.
+- **`Prompt`** — message construction.
+- **`Chat`** — turn-by-turn conversation state with persistence.
+
+Each of those is independently useful, but they always show up
+together. An Agent is the canonical pre-wired bundle:
+
+```ts
+yield* MyAgent.generateText({ prompt: "What's the weather in Paris?" });
+```
+
+That single call carries the system prompt, makes the toolkit's
+tools available to the model, routes the request through the bound
+language-model layer, and (in DO-backed Agents) records the
+exchange in chat persistence.
+
+## Anatomy
+
+```typescript
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+
+export class WeatherAgent extends Alchemy.Agent.Agent("WeatherAgent")(
+  Effect.gen(function* () {
+    return {
+      prompt: "You are a weather assistant. Answer using metric units.",
+      toolkit: WeatherToolkit,
+      languageModel,
+    };
+  }),
+) {}
+```
+
+Three parts:
+
+- **Identity** — `Agent("WeatherAgent")` registers the class and
+  gives it a tag. `yield* WeatherAgent` resolves the agent.
+- **Init Effect** — runs once when the agent is constructed; resolves
+  the `languageModel` layer and any other deps.
+- **Configuration** — `prompt`, `toolkit`, `languageModel` returned
+  from the init.
+
+## Composition with other concepts
+
+| Concept | How Agent uses it |
+| --- | --- |
+| [Resource](/concepts/resource) | Agent isn't a resource itself; it lives on top of resources (an `AiGateway`, a `DurableObjectNamespace`, a `Worker`). |
+| [Binding](/concepts/binding) | The agent's `languageModel` typically comes from `aiGateway.model({ ... })` — that's a binding-derived value. |
+| [Layer](/concepts/layers) | The init Effect returns a configuration record; the language model is provided to every `generateText` call as a Layer. |
+| [Platform](/concepts/platform) | A Worker or DO is the runtime that hosts the agent. The agent is just code inside it. |
+
+## DO-backed Agents
+
+The simplest agent runs inline inside a Worker's request handler.
+Once you want **per-conversation memory** — the LLM remembers what
+the user said two turns ago — pair the agent with a Durable Object:
+
+```typescript
+export default class ChatAgent extends Cloudflare.RpcDurableObjectNamespace<ChatAgent>()(
+  "ChatAgent",
+  { schema: ChatRpcs },
+  Effect.gen(function* () {
+    return Effect.gen(function* () {
+      const persistence = yield* Persistence.layerResultPersisted({
+        storeId: "alchemy.chat",
+      }).pipe(Layer.provide(Cloudflare.DurableObjectChatPersistence));
+
+      const handlers = ChatRpcs.toLayer({
+        send: ({ threadId, prompt }) =>
+          MyAgent.generateText({ prompt }).pipe(Effect.provide(persistence)),
+      });
+
+      return RpcServer.toHttpEffect(ChatRpcs).pipe(
+        Effect.provide(Layer.mergeAll(handlers, RpcSerialization.layerNdjson)),
+      );
+    });
+  }),
+) {}
+```
+
+The DO instance is the conversation. Each `getByName(threadId)` is a
+distinct chat with its own history. See the
+[Add a Chat Agent](/tutorial/cloudflare/agent) tutorial for the
+full walk-through.
+
+## When to use an Agent
+
+Use an Agent when:
+
+- You're calling `LanguageModel.generateText` (or `streamText`) more
+  than once and the prompt + tools are the same each time.
+- You want to expose "chat with my agent" through an HTTP / RPC
+  surface and the surface should not care which model is wired.
+- You want to swap the underlying provider (Workers AI today,
+  Anthropic tomorrow) without touching call sites.
+
+If you're issuing a one-off `generateText` call from a Worker route
+and there are no tools, skip the Agent — just provide a
+`languageModel` layer and call `LanguageModel.generateText` directly.
+
+## See also
+
+- [Effect AI guide](/guides/effect-ai) — how to wire any LanguageModel
+  into a Worker.
+- [Build an Agent guide](/guides/agent) — patterns for tools,
+  chat persistence, and structured outputs.
+- [Add a Chat Agent tutorial](/tutorial/cloudflare/agent) —
+  step-by-step DO-backed agent.
+- [Cloudflare AI Gateway](/tutorial/cloudflare/ai-gateway) — the
+  resource that gives you a `languageModel` layer routed through
+  the gateway.
