@@ -1,6 +1,7 @@
 export * from "./Assets.ts";
 export * from "./ConfigProvider.ts";
 export * from "./CronEventSource.ts";
+export * from "./EmailEventSource.ts";
 export * from "./DurableObjectBridge.ts";
 export * from "./DurableObjectNamespace.ts";
 export * from "./DurableObjectState.ts";

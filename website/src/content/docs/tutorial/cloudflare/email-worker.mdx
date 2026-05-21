@@ -1,0 +1,152 @@
+---
+title: Handle Inbound Email
+description: Receive inbound mail in a Cloudflare Worker with Cloudflare.Email.subscribe(...) — Effect-style handler with one message per call (no streaming).
+sidebar:
+  order: 11
+---
+
+Cloudflare Email Workers route inbound mail for a zone you've
+enabled email routing on to a Worker, which gets one
+`ForwardableEmailMessage` per delivery. This tutorial wires both
+halves on the Effect side:
+
+- A Worker that subscribes via
+  `Cloudflare.Email.subscribe((message) => Effect.…)`.
+- An `EmailRouting` zone toggle plus an `EmailRule` that forwards
+  matched mail to the Worker.
+
+Unlike queues there is no batch or stream — the handler runs once
+per message and returns `Effect<void, _, _>`.
+
+## Subscribe to inbound mail
+
+`Cloudflare.Email.subscribe(handler)` registers an `email`
+listener on the Worker. The handler receives Cloudflare's
+`ForwardableEmailMessage` (from `@cloudflare/workers-types`) and
+returns an `Effect`.
+
+```typescript
+// src/Inbox.ts
+import * as Cloudflare from "alchemy/Cloudflare";
+import * as Effect from "effect/Effect";
+
+export default Cloudflare.Worker(
+  "Inbox",
+  { main: import.meta.path },
+  Effect.gen(function* () {
+    yield* Cloudflare.Email.subscribe((message) =>
+      Effect.log(`from ${message.from} to ${message.to}`),
+    );
+    return {};
+  }).pipe(Effect.provide(Cloudflare.EmailEventSourceLive)),
+);
+```
+
+`message.from`, `message.to`, `message.headers`, and `message.raw`
+give you the envelope; `message.forward(address)` and
+`message.setReject(reason)` are the runtime actions.
+
+## Provide the runtime layer
+
+`subscribe(...)` is a `Context.Service` call —
+`EmailEventSourceLive` is the layer that wires the listener into
+the Worker's runtime dispatch.
+
+```diff lang="typescript"
+  Effect.gen(function* () {
+    yield* Cloudflare.Email.subscribe(...);
+    return {};
+  }).pipe(
++   Effect.provide(Cloudflare.EmailEventSourceLive),
+  ),
+```
+
+Without the live layer, the subscribe call fails at deploy with
+`Service not found: Cloudflare.Workers.EmailEventSource`.
+
+## Forward a message
+
+`message.forward(address)` hands the message off to a verified
+destination. The destination address must already exist on the
+account — declare it with `EmailAddress` so Cloudflare sends the
+verification mail during deploy.
+
+```typescript
+const ops = yield* Cloudflare.EmailAddress("Ops", {
+  email: "ops@example.com",
+});
+
+yield* Cloudflare.Email.subscribe((message) =>
+  Effect.tryPromise(() => message.forward(ops.email)),
+);
+```
+
+## Reject a message
+
+`message.setReject(reason)` bounces the message back to the
+sender. Use it for closed mailboxes or anti-abuse checks.
+
+```typescript
+yield* Cloudflare.Email.subscribe((message) =>
+  message.headers.get("x-spam-score") === "high"
+    ? Effect.sync(() => message.setReject("Rejected: spam"))
+    : Effect.tryPromise(() => message.forward("ops@example.com")),
+);
+```
+
+## Route a zone's mail to the Worker
+
+Cloudflare won't deliver mail until you enable email routing on
+the zone and add a rule whose action is `"worker"` with the
+Worker's name as the value.
+
+```typescript
+// alchemy.run.ts
+import * as Alchemy from "alchemy";
+import * as Cloudflare from "alchemy/Cloudflare";
+import * as Effect from "effect/Effect";
+import Inbox from "./src/Inbox.ts";
+
+export default Alchemy.Stack(
+  "EmailWorkerExample",
+  { providers: Cloudflare.providers(), state: Cloudflare.state() },
+  Effect.gen(function* () {
+    const worker = yield* Inbox;
+
+    yield* Cloudflare.EmailRouting({ zone: "example.com", enabled: true });
+
+    yield* Cloudflare.EmailRule("CatchAll", {
+      zone: "example.com",
+      matchers: [{ type: "all" }],
+      actions: [{ type: "worker", value: [worker.name] }],
+    });
+
+    return { worker: worker.url.as<string>() };
+  }),
+);
+```
+
+`{ type: "all" }` is a catch-all; for a specific address use
+`{ type: "literal", field: "to", value: "hello@example.com" }`.
+
+## What's the difference vs. a native `email()` handler?
+
+Cloudflare's runtime delivers email events to an
+`email(message, env, ctx)` export on the Worker module. You can
+write that directly:
+
+```typescript
+export default {
+  async email(message, env, ctx) {
+    await message.forward("ops@example.com");
+  },
+};
+```
+
+`Cloudflare.Email.subscribe(...)` is the same primitive on the
+Effect side — the Worker bundle's runtime dispatch routes the
+`email` event to the registered listener — but you get
+`Effect.gen` composition, typed errors, and the same shape as
+the other Cloudflare event sources
+([`Cloudflare.cron`](/tutorial/cloudflare/cron-trigger),
+[`Cloudflare.messages`](/tutorial/cloudflare/queue-consumer)).
