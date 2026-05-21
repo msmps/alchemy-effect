@@ -11,6 +11,12 @@ import * as HttpClient from "effect/unstable/http/HttpClient";
 import { Gateway } from "./fixtures/Gateway.ts";
 import LanguageModelTestWorker from "./fixtures/LanguageModelWorker.ts";
 
+// Fresh `workers.dev` URLs return non-200 (404 / 500 "Script not
+// found") for a few seconds while the edge propagates. Each test uses
+// `HttpClient.filterStatusOk(yield* HttpClient.HttpClient)` so the
+// existing `Effect.retry` rides through these by converting the
+// bad-status response into a retryable Effect failure.
+
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
   providers: Cloudflare.providers(),
 });
@@ -62,7 +68,7 @@ test(
   "deployed worker generates text via AiGateway-backed LanguageModel",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(`${out.url}/generate?prompt=${encodeURIComponent("Say pong.")}`)
@@ -100,7 +106,7 @@ test(
   "deployed worker streams text via AiGateway-backed LanguageModel",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(`${out.url}/stream?prompt=${encodeURIComponent("Say pong.")}`)
@@ -130,7 +136,7 @@ test(
   "streamed parts respect ordering: text-start → text-delta+ → text-end → finish",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(`${out.url}/stream?prompt=${encodeURIComponent("Say pong.")}`)
@@ -177,7 +183,7 @@ test.skipIf(!process.env.DEBUG_RAW_STREAM)(
   "DEBUG: dump raw Workers AI SSE stream",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
     const fs = yield* Effect.promise(() => import("node:fs"));
     const print = (s: string) => fs.writeSync(2, s);
 
@@ -204,7 +210,7 @@ test(
   "stream finish part reports the real token counts and a `stop` reason",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(
@@ -237,7 +243,7 @@ test(
   "stream emits multiple text-delta chunks for a long-form response",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(
@@ -273,7 +279,7 @@ test.skip(
   "persisted chat survives across DO invocations",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
     const id = `test-${Date.now()}`;
 
     const r1 = yield* client
@@ -316,7 +322,7 @@ test(
   "deployed worker invokes a tool via AiGateway-backed LanguageModel",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(
@@ -371,7 +377,7 @@ test(
   "streams tool-call parts via AiGateway-backed LanguageModel",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(
@@ -430,7 +436,7 @@ test(
   "concatenated tool-params-delta payloads parse back into the requested arguments",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(
@@ -469,7 +475,7 @@ test(
   "streams Effect-native parts and prints them live",
   Effect.gen(function* () {
     const out = yield* stack;
-    const client = yield* HttpClient.HttpClient;
+    const client = HttpClient.filterStatusOk(yield* HttpClient.HttpClient);
 
     const res = yield* client
       .get(
