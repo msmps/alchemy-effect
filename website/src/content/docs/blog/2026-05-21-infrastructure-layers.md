@@ -1,160 +1,184 @@
 ---
 title: Layers, infrastructure behind a typed interface
 date: 2026-05-21T21:00:00Z
-excerpt: The Layers doc gets rewritten around a Worker-shaped encapsulation example, and there's a new step-by-step guide that walks `JobService` end-to-end with one diff per step — from contract to provided Layer.
+excerpt: `WorkerEnvironment` used to leak through every binding API call into the consumer's type signature. Move it onto the Layer instead — closed over once at Layer construction — and bindings return `RuntimeContext` everywhere. The runtime-only color is now a single, cloud-agnostic Effect requirement.
 ---
 
-An **Infrastructure Layer** packages cloud resources and
-bindings behind a typed service. Code that depends on the
-service stays cloud-agnostic; swapping the Layer swaps the
-underlying resources, bindings, and runtime glue. The mechanism
-has been there for a while —
-[`v2.0.0-beta.43`](/blog/2026-05-21-beta-43) ships a focused
-pass on the docs around it.
+An Infrastructure Layer is supposed to be a sealed box: it owns
+the resources and bindings it needs, returns a typed service,
+and the consumer depends on the interface, not the cloud
+underneath.
 
-## Layers — refreshed doc
+That seal had a leak. Every binding-API method —
+`kv.get(...)`, `bucket.put(...)`, `db.prepare(...).first()` —
+returned an `Effect` whose `R` channel carried
+`WorkerEnvironment`. The cloud-specific dependency dragged
+itself all the way up into whatever Layer wrapped the binding.
+[`v2.0.0-beta.43`](/blog/2026-05-21-beta-43) plugs that leak
+([#383](https://github.com/alchemy-run/alchemy-effect/pull/383)),
+and lands `Alchemy.RuntimeContext` as the single, cloud-agnostic
+color for runtime-only code.
 
-The Layers story got rewritten around how people actually reach
-for them: not the leaky-`getJob` helper the old example used,
-but a Worker handler welded to one cloud's binding.
+## The leak
 
-[Layers](/concepts/layers) now opens with a Worker that calls
-KV directly:
+Take a Layer that wants to wrap KV behind a typed service.
+Before the change, the return type of every method on the
+binding was:
 
 ```typescript
-Effect.gen(function* () {
-  const kv = yield* Cloudflare.KVNamespaceBinding.bind(MyKV);
-
-  return {
-    fetch: Effect.gen(function* () {
-      const job = yield* kv.get<Job>("job-1", "json");
-      return HttpServerResponse.json(job);
-    }),
-  };
-});
+kv.get(key, "json"): Effect.Effect<Job | null, KVNamespaceError, WorkerEnvironment>
+//                                                                ^^^^^^^^^^^^^^^^
 ```
 
-and walks through why that shape is the wrong abstraction
-boundary (KV error, KV shape, KV binding all leaking into
-`fetch`), then collapses the whole thing into a `JobService`
-Layer the consumer never has to know is KV-backed. The init /
-runtime phase split now lines up with how `Cloudflare.Worker`
-is actually written, instead of the ad-hoc `getJob(id)` example
-the old version used. ([#386](https://github.com/alchemy-run/alchemy-effect/pull/386))
+`WorkerEnvironment` is the Cloudflare-runtime service — the
+thing that gives you access to the live `env` object inside a
+deployed Worker. It exists only inside `Cloudflare.Worker`.
 
-## New guide: Building Infrastructure Layers
-
-[`/guides/infrastructure-layers`](/guides/infrastructure-layers)
-is the "now build one yourself" companion to the concept doc.
-It walks `JobService` end-to-end — one heading, one diff, one
-explanation per step.
-
-### Define the service contract
+That requirement is contagious through Effect's `R` channel.
+The moment a `JobService` Layer wrapped `kv.get`:
 
 ```typescript
-// src/JobService.ts
-export class JobService extends Context.Service<
+export const JobServiceKV = Layer.effect(
   JobService,
-  {
-    getJob(id: string): Effect.Effect<Job | null, never, Alchemy.RuntimeContext>;
-    putJob(job: Job): Effect.Effect<void, never, Alchemy.RuntimeContext>;
-  }
->()("JobService") {}
+  Effect.gen(function* () {
+    const kv = yield* Cloudflare.KVNamespaceBinding.bind(MyKV);
+    return {
+      getJob: Effect.fn(function* (id: string) {
+        return yield* kv.get<Job>(id, "json");
+        //                                    └─ pulls WorkerEnvironment up
+      }),
+    };
+  }),
+);
 ```
 
-`Alchemy.RuntimeContext` on the return types marks the methods as
-runtime-only. The compiler rejects any attempt to call them from a
-deploy script.
+— `WorkerEnvironment` had to surface in `JobService.getJob`'s
+declared type, or the Layer didn't type-check. The "abstract
+service" interface couldn't actually be cloud-agnostic, because
+its return type told you exactly which cloud it ran on.
 
-### Declare the KV namespace inside the Layer
+That's not a leaky abstraction in the figurative sense. It's a
+leaky abstraction in the type-system sense — the encapsulation
+boundary was visibly broken at the type level.
+
+## The fix — close over `env` once
+
+The fix lives in each `*BindingLive` Layer. Resolve
+`WorkerEnvironment` once during Layer construction, close over
+the resulting `env`, return methods that don't require it
+anymore:
 
 ```diff lang="typescript"
- // src/JobService.KV.ts
-+import * as Cloudflare from "alchemy/Cloudflare";
-
- export const JobServiceKV = Layer.effect(
-   JobService,
+ export const KVNamespaceBindingLive = Layer.effect(
+   KVNamespaceBinding,
    Effect.gen(function* () {
-+    const Namespace = yield* Cloudflare.KVNamespace("Jobs");
-     return {
+     const bind = yield* KVNamespaceBindingPolicy;
++    const env = yield* WorkerEnvironment;
+
+     return Effect.fn(function* (bucket: KVNamespace) {
+       yield* bind(bucket);
+-      const raw = WorkerEnvironment.pipe(
+-        Effect.map((env) =>
+-          (env as Record<string, runtime.KVNamespace>)[bucket.LogicalId],
+-        ),
+-      );
++      const raw = Effect.sync(
++        () => (env as Record<string, runtime.KVNamespace>)[bucket.LogicalId],
++      );
        // ...
-     };
+     });
    }),
  );
 ```
 
-The KV namespace is a normal alchemy resource — it joins the
-Stack when the Layer is provided.
+`WorkerEnvironment` is now a dependency of the `Live` Layer,
+not of the runtime methods it produces. Satisfy it at the
+Worker boundary (the Worker runtime does this automatically) and
+nothing downstream has to know.
 
-### Bind the namespace
+Every binding interface in `alchemy/Cloudflare` now matches
+this shape — KV, R2, D1, Hyperdrive, Queue, AiGateway,
+Analytics Engine, Images, Email, Artifacts, Secrets Store,
+Durable Object namespace, Workflow, Dynamic Worker Loader. The
+same pattern lands on AWS bindings.
 
-```diff lang="typescript"
-   Effect.gen(function* () {
-     const Namespace = yield* Cloudflare.KVNamespace("Jobs");
-+    const kv = yield* Cloudflare.KVNamespaceBinding.bind(Namespace);
-     return {
-       // ...
-     };
-   }),
-```
+## `RuntimeContext` — coloring runtime-only code
 
-`KVNamespaceBinding.bind(Namespace)` is the binding API — wires
-the namespace into the consuming Worker and returns a typed
-client.
-
-### Implement the methods
+The methods still need *some* requirement, because they still
+do real I/O — they can't be allowed to run from a deploy script
+or a plan run. That's what `Alchemy.RuntimeContext` is for:
 
 ```diff lang="typescript"
-     return {
-       getJob: Effect.fn(function* (id: string) {
--        // TODO: read from KV
-+        return yield* kv.get<Job>(id, "json");
-       }),
-       putJob: Effect.fn(function* (job: Job) {
--        // TODO: write to KV
-+        yield* kv.put(job.id, JSON.stringify(job));
-       }),
-     };
+-kv.get(key, "json"): Effect.Effect<Job | null, KVNamespaceError, WorkerEnvironment>
++kv.get(key, "json"): Effect.Effect<Job | null, KVNamespaceError, RuntimeContext>
 ```
 
-The runtime callable's `RuntimeContext` requirement matches what
-`JobService` declared. Type checked end-to-end.
+`RuntimeContext` is a typed Effect service that exists *only*
+inside a deployed Function or Worker. Provided automatically by
+the runtime; never available at plan time, init time, or
+anywhere else.
 
-### Provide the Layer
+This is the "colored function" trick, encoded as an Effect
+requirement. Code with `RuntimeContext` in its `R` channel is
+provably "this can only run inside a deployed handler" — call
+it from a deploy script and the type checker rejects the call,
+because nothing in scope satisfies the requirement.
 
-```diff lang="typescript"
- // src/Api.ts
- export default Cloudflare.Worker(
-   "Api",
-   { main: import.meta.filename },
-   Effect.gen(function* () {
-+    const jobs = yield* JobService;
+```typescript
+// inside Cloudflare.Worker's runtime closure — fine
+fetch: Effect.gen(function* () {
+  const job = yield* kv.get<Job>("job-1", "json"); // ✓ RuntimeContext satisfied
+  return HttpServerResponse.json(job);
+});
 
-     return {
-       fetch: Effect.gen(function* () {
-+        const job = yield* jobs.getJob("job-1");
-+        return yield* HttpServerResponse.json(job);
-       }),
-     };
--  }),
-+  }).pipe(
-+    Effect.provide(
-+      JobServiceKV.pipe(Layer.provide(Cloudflare.KVNamespaceBindingLive)),
-+    ),
-+  ),
- );
+// at the top of alchemy.run.ts — fails to type-check
+const job = yield* kv.get<Job>("job-1", "json");
+//                                                ^ RuntimeContext not satisfied
 ```
 
-`Layer.provide` satisfies `JobServiceKV`'s dependency on
-`KVNamespaceBinding` *privately*, so the consumer's required
-context shrinks back to just `JobService`. Swap the
-implementation for a DynamoDB-backed Layer, the consumer's
-signature is unchanged. ([#383](https://github.com/alchemy-run/alchemy-effect/pull/383))
+It's the same protection `WorkerEnvironment` was giving you
+incidentally — "this method only works in a Worker" — but now
+it's a single, cloud-agnostic name. AWS Lambda bindings use the
+same `RuntimeContext`; Cloudflare Workers use the same
+`RuntimeContext`; an in-memory test fake satisfies the same
+`RuntimeContext`. Consumers don't have to write
+`Effect<A, E, WorkerEnvironment | LambdaEnvironment | TestEnv>`
+to be portable.
+
+## The Layer pattern, now actually sealed
+
+With both changes in place, the `JobService` Layer's inferred
+type is what it always should have been:
+
+```typescript
+JobService.getJob: (id: string) => Effect.Effect<Job | null, never, RuntimeContext>
+```
+
+No `WorkerEnvironment`. No KV-specific error. Nothing about
+Cloudflare. A consumer Worker can write:
+
+```typescript
+const jobs = yield* JobService;
+const job = yield* jobs.getJob("job-1");
+```
+
+— and never learn that it's KV underneath. Swap the Layer for a
+DynamoDB-backed implementation, the consumer's type is
+unchanged. Swap it for an in-memory mock backed by `Map`, the
+consumer's type is unchanged. That was the whole pitch for
+Layers; it now actually holds at the type level.
+
+The [Layers](/concepts/layers) doc walks through the
+encapsulation pattern end-to-end against a Worker, and the new
+[Building Infrastructure Layers](/guides/infrastructure-layers)
+guide walks `JobService` from contract to provided Layer one
+diff at a time. ([#386](https://github.com/alchemy-run/alchemy-effect/pull/386))
 
 ## Where to go next
 
-- [Layers](/concepts/layers) — the refreshed encapsulation walkthrough
-- [Building Infrastructure Layers](/guides/infrastructure-layers) — the new step-by-step guide
+- [Layers](/concepts/layers) — the encapsulation walkthrough
+- [Building Infrastructure Layers](/guides/infrastructure-layers) — step-by-step guide
 - [Binding](/concepts/binding) — what `.bind(...)` does under the hood
-- [Phases](/concepts/phases) — when init vs runtime code runs
-- [Circular Bindings](/guides/circular-bindings) — two Layers referencing each other
+- [Phases](/concepts/phases) — init vs runtime, and where `RuntimeContext` is satisfied
+- [#383 — move WorkerEnvironment requirement to the Layer](https://github.com/alchemy-run/alchemy-effect/pull/383)
+- [#386 — refresh layers concept doc](https://github.com/alchemy-run/alchemy-effect/pull/386)
