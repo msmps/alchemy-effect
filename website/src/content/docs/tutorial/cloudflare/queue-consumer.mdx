@@ -54,6 +54,7 @@ In the Worker init phase, yield the queue resource and ask
 // src/Api.ts
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
+import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
 import { Bucket } from "./Bucket.ts";
 import { Queue } from "./Queue.ts";
 
@@ -65,7 +66,11 @@ export default Cloudflare.Worker(
     const queueResource = yield* Queue;
     const queue = yield* Cloudflare.QueueBinding.bind(queueResource);
 
-    return { fetch: Effect.gen(function* () { return new Response("ok"); }) };
+    return {
+      fetch: Effect.gen(function* () {
+        return HttpServerResponse.text("ok");
+      }),
+    };
   }).pipe(
     Effect.provide(Cloudflare.QueueBindingLive),
     Effect.provide(Cloudflare.R2BucketBindingLive),
@@ -99,12 +104,12 @@ expected to return `Effect.Effect<void>`.
 
 +   yield* Cloudflare.messages<QueueMessageBody>(queueResource).subscribe(
 +     (stream) =>
-+       Stream.runForEach(stream, (msg) =>
-+         bucket
-+           .put(`/queue/${msg.body.id}`, JSON.stringify(msg.body), {
++       stream.pipe(
++         Stream.runForEach((msg) =>
++           bucket.put(`/queue/${msg.body.id}`, JSON.stringify(msg.body), {
 +             httpMetadata: { contentType: "application/json" },
-+           })
-+           .pipe(Effect.asVoid),
++           }),
++         ),
 +       ),
 +   );
 ```
