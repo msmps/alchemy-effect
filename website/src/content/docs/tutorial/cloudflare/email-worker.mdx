@@ -21,9 +21,10 @@ per message and returns `Effect<void, _, _>`.
 ## Subscribe to inbound mail
 
 `Cloudflare.Email.subscribe(handler)` registers an `email`
-listener on the Worker. The handler receives Cloudflare's
-`ForwardableEmailMessage` (from `@cloudflare/workers-types`) and
-returns an `Effect`.
+listener on the Worker. The handler receives a
+`ForwardableEmailMessage` whose action methods (`forward`,
+`reply`, `setReject`) return `Effect`s rather than `Promise`s, so
+you compose them with the rest of your effect program.
 
 ```typescript
 // src/Inbox.ts
@@ -42,9 +43,10 @@ export default Cloudflare.Worker(
 );
 ```
 
-`message.from`, `message.to`, `message.headers`, and `message.raw`
-give you the envelope; `message.forward(address)` and
-`message.setReject(reason)` are the runtime actions.
+`message.from`, `message.to`, `message.headers`, `message.raw`,
+and `message.rawSize` give you the envelope. `forward` and `reply`
+fail with `EmailError` if Cloudflare rejects the action (e.g. an
+unverified destination); `setReject` never fails.
 
 ## Provide the runtime layer
 
@@ -77,7 +79,7 @@ const ops = yield* Cloudflare.EmailAddress("Ops", {
 });
 
 yield* Cloudflare.Email.subscribe((message) =>
-  Effect.tryPromise(() => message.forward(ops.email)),
+  message.forward(ops.email),
 );
 ```
 
@@ -89,8 +91,8 @@ sender. Use it for closed mailboxes or anti-abuse checks.
 ```typescript
 yield* Cloudflare.Email.subscribe((message) =>
   message.headers.get("x-spam-score") === "high"
-    ? Effect.sync(() => message.setReject("Rejected: spam"))
-    : Effect.tryPromise(() => message.forward("ops@example.com")),
+    ? message.setReject("Rejected: spam")
+    : message.forward("ops@example.com"),
 );
 ```
 

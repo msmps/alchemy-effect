@@ -7,6 +7,81 @@ import type { FunctionContext } from "../../Serverless/Function.ts";
 import { isWorkerEvent } from "./Worker.ts";
 
 /**
+ * Effect-native wrapper around Cloudflare's
+ * [`ForwardableEmailMessage`](https://developers.cloudflare.com/email-routing/email-workers/runtime-api/#forwardableemailmessage).
+ *
+ * The envelope (`from`, `to`, `headers`, `raw`, `rawSize`) is exposed
+ * verbatim; the action methods (`forward`, `reply`, `setReject`) return
+ * `Effect`s instead of `Promise`/`void`.
+ */
+export interface ForwardableEmailMessage {
+  /** Envelope From address. */
+  readonly from: string;
+  /** Envelope To address. */
+  readonly to: string;
+  /** RFC 5322 headers. */
+  readonly headers: cf.Headers;
+  /** Raw message body stream. */
+  readonly raw: cf.ReadableStream<Uint8Array>;
+  /** Size of the raw message body in bytes. */
+  readonly rawSize: number;
+  /**
+   * Reject this message back to the connecting client with a permanent
+   * SMTP error and the given reason.
+   */
+  setReject(reason: string): Effect.Effect<void>;
+  /**
+   * Forward this message to a verified destination address on the
+   * account. Fails with `EmailError` if Cloudflare rejects the forward
+   * (e.g. unverified destination).
+   */
+  forward(
+    rcptTo: string,
+    headers?: cf.Headers,
+  ): Effect.Effect<void, EmailError>;
+  /**
+   * Reply to the sender with a new outbound message. Fails with
+   * `EmailError` if Cloudflare rejects the reply.
+   */
+  reply(message: cf.EmailMessage): Effect.Effect<void, EmailError>;
+}
+
+export class EmailError extends Error {
+  readonly _tag = "EmailError";
+  constructor(
+    readonly action: "forward" | "reply",
+    readonly cause: unknown,
+  ) {
+    super(
+      `Cloudflare email ${action} failed: ${
+        cause instanceof Error ? cause.message : String(cause)
+      }`,
+    );
+  }
+}
+
+const wrap = (
+  message: cf.ForwardableEmailMessage,
+): ForwardableEmailMessage => ({
+  from: message.from,
+  to: message.to,
+  headers: message.headers,
+  raw: message.raw,
+  rawSize: message.rawSize,
+  setReject: (reason) => Effect.sync(() => message.setReject(reason)),
+  forward: (rcptTo, headers) =>
+    Effect.tryPromise({
+      try: () => message.forward(rcptTo, headers),
+      catch: (cause) => new EmailError("forward", cause),
+    }),
+  reply: (msg) =>
+    Effect.tryPromise({
+      try: () => message.reply(msg),
+      catch: (cause) => new EmailError("reply", cause),
+    }),
+});
+
+/**
  * Subscribe to Cloudflare Email Worker events with an Effect handler.
  *
  * Cloudflare routes inbound mail to your Worker when an
@@ -14,11 +89,10 @@ import { isWorkerEvent } from "./Worker.ts";
  * type `"worker"` targets it. Exporting an `email` handler is
  * sufficient — no extra binding metadata is required on the Worker.
  *
- * Unlike queue or stream sources, the `email` handler is invoked
- * once per message — there is no streaming or batching API. The
- * handler receives a `ForwardableEmailMessage` and returns
- * `Effect<void, _, _>`. Failures are caught and logged; to bounce
- * a message, call `message.setReject(reason)` inside the handler.
+ * The handler runs once per message (no streaming or batching) and
+ * receives a {@link ForwardableEmailMessage} whose action methods are
+ * `Effect`-returning — `forward`, `reply`, and `setReject` are
+ * composable with the rest of your effect program.
  *
  * @binding Cloudflare.Workers.EmailEventSource
  *
@@ -40,17 +114,17 @@ import { isWorkerEvent } from "./Worker.ts";
  * );
  * ```
  *
- * @example Forward via `message.forward`
+ * @example Forward to a verified destination
  * ```typescript
  * yield* Cloudflare.Email.subscribe((message) =>
- *   Effect.tryPromise(() => message.forward("ops@example.com")),
+ *   message.forward("ops@example.com"),
  * );
  * ```
  *
  * @example Reject (bounce) a message
  * ```typescript
  * yield* Cloudflare.Email.subscribe((message) =>
- *   Effect.sync(() => message.setReject("Mailbox closed")),
+ *   message.setReject("Mailbox closed"),
  * );
  * ```
  *
@@ -69,17 +143,13 @@ import { isWorkerEvent } from "./Worker.ts";
  * @see https://developers.cloudflare.com/email-routing/email-workers/
  */
 export const Email = {
-  subscribe: <Req = never>(
-    process: (
-      message: cf.ForwardableEmailMessage,
-    ) => Effect.Effect<void, unknown, Req>,
+  subscribe: <E = never, Req = never>(
+    process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
   ) => EmailEventSource.use((source) => source(process)),
 };
 
-export type EmailEventSourceService = <Req = never>(
-  process: (
-    message: cf.ForwardableEmailMessage,
-  ) => Effect.Effect<void, unknown, Req>,
+export type EmailEventSourceService = <E = never, Req = never>(
+  process: (message: ForwardableEmailMessage) => Effect.Effect<void, E, Req>,
 ) => Effect.Effect<void, never, never>;
 
 export class EmailEventSource extends Context.Service<
@@ -90,16 +160,16 @@ export class EmailEventSource extends Context.Service<
 export const EmailEventSourceLive = Layer.effect(
   EmailEventSource,
   Effect.gen(function* () {
-    return Effect.fn(function* <Req>(
+    return Effect.fn(function* <E, Req>(
       process: (
-        message: cf.ForwardableEmailMessage,
-      ) => Effect.Effect<void, unknown, Req>,
+        message: ForwardableEmailMessage,
+      ) => Effect.Effect<void, E, Req>,
     ) {
       const ctx = (yield* RuntimeContext) as unknown as FunctionContext;
       yield* ctx.listen<void, Req>((event) => {
         if (!isWorkerEvent(event) || event.type !== "email") return;
 
-        const message = event.input as cf.ForwardableEmailMessage;
+        const message = wrap(event.input as cf.ForwardableEmailMessage);
         return process(message).pipe(Effect.catchCause(() => Effect.void));
       });
     }) as EmailEventSourceService;
