@@ -354,6 +354,7 @@
     "@effect/platform-bun": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/sql-pg": "catalog:",
+    "@effect/sql-mysql2": "catalog:",
     "drizzle-kit": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
@@ -368,6 +369,9 @@
       "optional": true
     },
     "@effect/sql-pg": {
+      "optional": true
+    },
+    "@effect/sql-mysql2": {
       "optional": true
     },
     "drizzle-kit": {

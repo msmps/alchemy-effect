@@ -9,8 +9,9 @@ import { MinimumLogLevel } from "effect/References";
 import * as Schedule from "effect/Schedule";
 import * as HttpClient from "effect/unstable/http/HttpClient";
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
-import HyperdriveWorker from "./fixtures/hyperdrive-worker.ts";
-import type { Widget } from "./fixtures/schema.ts";
+import HyperdriveWorker, {
+  type Widget,
+} from "./fixtures/hyperdrive-effect-sql/worker.ts";
 import { Hyperdrive, PlanetscaleDb } from "./fixtures/Stack.ts";
 
 const { test } = Test.make({
@@ -29,18 +30,13 @@ class WorkerNotReady extends Data.TaggedError("WorkerNotReady")<{
 
 describe.skipIf(!process.env.PLANETSCALE_TEST)(() => {
   /**
-   * End-to-end: deploy a {@link Planetscale.PostgresDatabase} + branch +
-   * role, point a {@link Cloudflare.Hyperdrive} at the role's origin, and
-   * exercise the Drizzle Effect client over real Postgres via a Worker.
-   *
-   * Validates that:
-   *   - migrations applied from the fixtures dir produce the expected table
-   *   - `Cloudflare.Hyperdrive.bind(...) + Drizzle.postgres(...)` produces
-   *     a working Effect-native client at runtime
-   *   - INSERT / SELECT / DELETE round-trip through Hyperdrive to Planetscale
+   * End-to-end: deploy a {@link Planetscale.MySQLDatabase} + branch +
+   * password, point a {@link Cloudflare.Hyperdrive} at the password's
+   * origin, and exercise `@effect/sql-mysql2` over real MySQL via a
+   * Worker.
    */
   test.provider(
-    "PostgresBranch + Hyperdrive + Drizzle round-trips through a Worker",
+    "MySQLBranch + Hyperdrive + @effect/sql-mysql2 round-trips through a Worker",
     (stack) =>
       Effect.gen(function* () {
         yield* stack.destroy();
@@ -57,8 +53,6 @@ describe.skipIf(!process.env.PLANETSCALE_TEST)(() => {
         expect(worker.url).toBeTypeOf("string");
         const baseUrl = (worker.url as string).replace(/\/+$/, "");
 
-        // workers.dev edge takes a few seconds to start serving; retry the
-        // first request until we get a non-4xx.
         const initial = yield* HttpClient.get(`${baseUrl}/widgets`).pipe(
           Effect.flatMap((res) =>
             res.status === 200

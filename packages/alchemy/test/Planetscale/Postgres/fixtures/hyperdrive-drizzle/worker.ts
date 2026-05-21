@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { HttpServerRequest } from "effect/unstable/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
-import { Hyperdrive } from "./Stack.ts";
+import { Hyperdrive } from "../Stack.ts";
 import { relations, Widgets } from "./schema.ts";
 
 /**

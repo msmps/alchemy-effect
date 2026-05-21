@@ -176,7 +176,7 @@ export default class Api extends Cloudflare.Worker<Api>()(
         return HttpServerResponse.text("ok");
       }),
     };
-  }).pipe(Effect.provide(Cloudflare.HyperdriveConnectionLive)),
+  }).pipe(Effect.provide(Cloudflare.HyperdriveBindingLive)),
 ) {}
 ```
 
@@ -218,7 +218,7 @@ placement is what makes the construction lazy, since the layer is
 built when the request runs (with `RuntimeContext` in scope):
 
 ```diff lang="typescript"
-+import * as SqlClient from "@effect/sql/SqlClient";
++import * as SqlClient from "effect/unstable/sql/SqlClient";
 
     return {
       fetch: Effect.gen(function* () {
